@@ -1,0 +1,23 @@
+{
+  "name": "nexpense",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.30.3",
+  "scripts": {
+    "mobile": "pnpm --filter mobile start",
+    "mobile:ios": "pnpm --filter mobile ios",
+    "mobile:android": "pnpm --filter mobile android",
+    "mobile:web": "pnpm --filter mobile web",
+    "supabase:start": "supabase start",
+    "supabase:db:push": "supabase db push",
+    "supabase:functions:serve": "supabase functions serve"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "supabase": "^2.0.0",
+    "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "expo": "~54.0.0"
+  }
+}

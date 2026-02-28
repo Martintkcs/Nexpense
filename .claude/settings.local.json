@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install -g pnpm)",
+      "Bash(pnpm --version)",
+      "Bash(npx expo install expo-router expo-constants expo-linking expo-splash-screen expo-font expo-haptics expo-notifications expo-location expo-secure-store expo-status-bar)",
+      "Bash(npx expo install react-native-reanimated react-native-gesture-handler react-native-safe-area-context react-native-screens react-native-svg @react-native-async-storage/async-storage)",
+      "Bash(npm install react-native-reanimated react-native-gesture-handler react-native-safe-area-context react-native-screens react-native-svg @react-native-async-storage/async-storage)",
+      "Bash(npm install --legacy-peer-deps react-native-reanimated react-native-gesture-handler react-native-safe-area-context react-native-screens react-native-svg @react-native-async-storage/async-storage)",
+      "Bash(npm install --legacy-peer-deps @supabase/supabase-js zustand @tanstack/react-query zod date-fns victory-native)",
+      "Bash(npm install --legacy-peer-deps --save-dev nativewind tailwindcss)",
+      "Bash(npx expo export --platform web --output-dir /tmp/nexpense-check)",
+      "Bash(npm install --legacy-peer-deps react-dom react-native-web)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npm install --legacy-peer-deps lucide-react-native)",
+      "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(tabs\\)/expenses/\")",
+      "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(tabs\\)/impulse/\")",
+      "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(auth\\)/\")"
+    ]
+  }
+}

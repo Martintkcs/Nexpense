@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+apps/mobile/expo-env.d.ts
+
+# Environment variables – SOHA NE COMMITOLD EZEKET!
+.env
+.env.local
+.env.production
+apps/mobile/.env
+apps/mobile/.env.local
+
+# Native build artifacts
+apps/mobile/android/
+apps/mobile/ios/
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/workspace.xml
+.idea/dataSources/
+.idea/httpRequests/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

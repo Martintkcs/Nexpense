@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexpense – Interaktív Prototípus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #4F46E5; --primary-light: #818CF8; --primary-bg: #EEF2FF;
+  --success: #10B981; --success-bg: #D1FAE5;
+  --warning: #F59E0B; --warning-bg: #FEF3C7;
+  --danger: #EF4444; --danger-bg: #FEE2E2;
+  --info: #3B82F6;
+  --bg: #F2F2F7; --surface: #FFFFFF; --surface-2: #F2F2F7;
+  --border: #E5E7EB; --border-soft: #F3F4F6;
+  --text-1: #111827; --text-2: #6B7280; --text-3: #9CA3AF;
+  --cat-food: #F97316; --cat-transport: #3B82F6; --cat-shopping: #EC4899;
+  --cat-entertainment: #8B5CF6; --cat-health: #10B981;
+  --cat-housing: #6366F1; --cat-util: #64748B; --cat-sub: #EF4444;
+  --shadow: 0 2px 12px rgba(0,0,0,0.07);
+  --radius-sm: 8px; --radius: 14px; --radius-lg: 20px;
+}
+.dark {
+  --bg: #000000; --surface: #1C1C1E; --surface-2: #2C2C2E;
+  --border: #3A3A3C; --border-soft: #2C2C2E;
+  --text-1: #F9FAFB; --text-2: #8E8E93; --text-3: #48484A;
+  --primary-bg: rgba(79,70,229,0.18);
+  --success-bg: rgba(16,185,129,0.15); --warning-bg: rgba(245,158,11,0.15);
+  --danger-bg: rgba(239,68,68,0.15);
+  --shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: #0f0f1a;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 24px 16px;
+  -webkit-font-smoothing: antialiased;
+}
+.top-bar {
+  display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;
+}
+.top-label { color: rgba(255,255,255,0.4); font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-right: 4px; }
+.ctrl-btn {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7); padding: 7px 16px; border-radius: 20px;
+  cursor: pointer; font-size: 13px; font-family: 'Inter', sans-serif;
+  transition: all 0.2s; font-weight: 500;
+}
+.ctrl-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+.ctrl-btn.active { background: #4F46E5; border-color: #4F46E5; color: white; }
+
+/* ── PHONE FRAME ── */
+.phone {
+  width: 375px; height: 812px;
+  background: var(--bg); border-radius: 52px;
+  overflow: hidden; position: relative;
+  box-shadow: 0 0 0 2px #2a2a2a, 0 0 0 10px #1a1a1a, 0 0 0 12px #333, 0 40px 80px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column;
+  transition: background 0.3s;
+}
+.notch {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 120px; height: 30px; background: #1a1a1a; border-radius: 0 0 18px 18px; z-index: 200;
+}
+.status-bar {
+  height: 50px; padding: 14px 24px 0; display: flex; align-items: center;
+  justify-content: space-between; background: var(--surface); flex-shrink: 0; z-index: 10;
+  transition: background 0.3s;
+}
+.status-time { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.status-icons svg { width: 16px; height: 16px; fill: var(--text-1); }
+
+/* ── SCREENS ── */
+.screens { flex: 1; position: relative; overflow: hidden; background: var(--bg); transition: background 0.3s; }
+.screen {
+  position: absolute; inset: 0; overflow-y: auto; display: none;
+  flex-direction: column; background: var(--bg); scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen.active { display: flex; animation: fadeSlide 0.2s ease; }
+@keyframes fadeSlide { from { opacity:0.5; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── TAB BAR ── */
+.tab-bar {
+  height: 82px; background: var(--surface); border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start; padding-top: 8px; flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 4px 0; position: relative; }
+.tab svg { width: 26px; height: 26px; stroke: var(--text-3); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s; }
+.tab span { font-size: 10px; color: var(--text-3); font-weight: 500; transition: color 0.2s; }
+.tab.active svg { stroke: var(--primary); }
+.tab.active span { color: var(--primary); font-weight: 600; }
+.tab-badge { position: absolute; top: 2px; right: calc(50% - 20px); background: var(--danger); color: white; width: 17px; height: 17px; border-radius: 9px; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface); }
+
+/* ── NAV HEADER ── */
+.nav-header {
+  background: var(--surface); padding: 14px 20px 10px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); transition: background 0.3s, border-color 0.3s;
+}
+.nav-header h1 { font-size: 22px; font-weight: 700; color: var(--text-1); }
+.nav-header p { font-size: 13px; color: var(--text-2); margin-top: 1px; }
+
+/* ── UTILS ── */
+.px { padding-left: 16px; padding-right: 16px; }
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); transition: background 0.3s; }
+.section-hd { display: flex; justify-content: space-between; align-items: center; padding: 0 2px; margin-bottom: 8px; }
+.section-hd h3 { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.section-hd a { font-size: 13px; color: var(--primary); font-weight: 500; cursor: pointer; }
+.mt8 { margin-top: 8px; } .mt12 { margin-top: 12px; } .mt16 { margin-top: 16px; }
+.pb20 { padding-bottom: 20px; }
+
+/* ══════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════ */
+.dash-hero {
+  background: linear-gradient(160deg, #4338CA 0%, #4F46E5 50%, #6366F1 100%);
+  padding: 16px 20px 48px; flex-shrink: 0;
+}
+.dash-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.dash-greeting { font-size: 13px; color: rgba(255,255,255,0.7); font-weight: 500; }
+.dash-name { font-size: 20px; font-weight: 700; color: white; margin-top: 2px; }
+.notif-btn {
+  width: 36px; height: 36px; border-radius: 18px; background: rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+}
+.notif-btn svg { width: 18px; height: 18px; stroke: white; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.dash-total-lbl { font-size: 11px; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-top: 20px; }
+.dash-total { font-family: 'JetBrains Mono', monospace; font-size: 38px; font-weight: 500; color: white; margin-top: 3px; line-height: 1; }
+.dash-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.18); padding: 4px 10px; border-radius: 20px; margin-top: 8px; font-size: 12px; color: white; font-weight: 500; }
+.dash-cards { padding: 0 16px; margin-top: -32px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
+
+/* Progress card */
+.prog-card { padding: 14px 16px; }
+.prog-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.prog-row .lbl { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.prog-row .val { font-size: 12px; color: var(--text-2); }
+.prog-bg { height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4F46E5, #818CF8); }
+.prog-lbls { display: flex; justify-content: space-between; margin-top: 5px; font-size: 11px; color: var(--text-3); }
+
+/* Donut card */
+.donut-card { padding: 14px 16px; }
+.donut-card h3 { font-size: 13px; font-weight: 600; color: var(--text-1); margin-bottom: 12px; }
+.donut-wrap { display: flex; align-items: center; gap: 16px; }
+.donut-svg { width: 86px; height: 86px; flex-shrink: 0; }
+.legend { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+.leg-row { display: flex; align-items: center; gap: 7px; }
+.leg-dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+.leg-name { font-size: 12px; color: var(--text-1); flex: 1; }
+.leg-pct { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.leg-amt { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-3); }
+
+/* AI insight */
+.ai-card {
+  padding: 13px 14px; display: flex; gap: 11px; align-items: flex-start;
+  background: var(--primary-bg); border-radius: var(--radius);
+  border: 1px solid rgba(99,102,241,0.2);
+}
+.ai-ico { width: 30px; height: 30px; background: var(--primary); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.ai-lbl { font-size: 10px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; }
+.ai-text { font-size: 13px; color: var(--text-1); line-height: 1.45; margin-top: 2px; }
+
+/* Expense items */
+.exp-list { overflow: hidden; }
+.exp-item { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; }
+.exp-item:last-child { border-bottom: none; }
+.exp-ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.exp-info { flex: 1; min-width: 0; }
+.exp-name { font-size: 14px; font-weight: 600; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-cat { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+.exp-right { text-align: right; flex-shrink: 0; }
+.exp-amt { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text-1); }
+.exp-time { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+/* FAB */
+.fab {
+  position: absolute; bottom: 14px; right: 16px; width: 50px; height: 50px;
+  background: var(--primary); border-radius: 25px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 18px rgba(79,70,229,0.45); cursor: pointer; z-index: 50;
+  transition: transform 0.15s;
+}
+.fab:active { transform: scale(0.93); }
+.fab svg { width: 22px; height: 22px; stroke: white; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+
+/* ══════════════════════════════════════
+   EXPENSES
+══════════════════════════════════════ */
+.search-wrap { padding: 10px 16px 6px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); transition: background 0.3s, border-color 0.3s; }
+.search-box { background: var(--surface-2); border-radius: 11px; padding: 9px 13px; display: flex; align-items: center; gap: 8px; }
+.search-box svg { width: 16px; height: 16px; stroke: var(--text-3); fill: none; stroke-width: 2; stroke-linecap: round; flex-shrink: 0; }
+.search-box span { font-size: 14px; color: var(--text-3); }
+.chips { display: flex; gap: 7px; padding: 10px 16px 0; overflow-x: auto; flex-shrink: 0; scrollbar-width: none; padding-bottom: 10px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.chips::-webkit-scrollbar { display: none; }
+.chip { padding: 5px 13px; border-radius: 18px; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-2); transition: all 0.15s; }
+.chip.on { background: var(--primary); border-color: var(--primary); color: white; }
+.day-grp { padding: 0 16px 4px; }
+.day-lbl { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; padding: 12px 0 6px; }
+
+/* ══════════════════════════════════════
+   ANALYTICS
+══════════════════════════════════════ */
+.period-sel { display: flex; background: var(--surface-2); border-radius: 11px; padding: 3px; margin: 12px 16px 0; flex-shrink: 0; }
+.per-opt { flex: 1; text-align: center; padding: 7px; border-radius: 9px; font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer; transition: all 0.2s; }
+.per-opt.on { background: var(--surface); color: var(--text-1); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+
+.analytics-summary-card { margin: 12px 16px 0; padding: 18px; text-align: center; }
+.an-lbl { font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600; }
+.an-total { font-family: 'JetBrains Mono', monospace; font-size: 30px; font-weight: 500; color: var(--text-1); margin: 4px 0; }
+.an-change { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 16px; }
+.an-change.neg { background: var(--success-bg); color: #065F46; }
+.dark .an-change.neg { color: #34D399; }
+
+.bar-chart-card { margin: 10px 16px 0; padding: 14px 16px; }
+.bar-chart-card h3 { font-size: 13px; font-weight: 600; color: var(--text-1); margin-bottom: 12px; }
+.bars { display: flex; align-items: flex-end; gap: 5px; height: 72px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+.bar-fill { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.5s ease; }
+.bar-lbl { font-size: 10px; color: var(--text-3); font-weight: 500; }
+.bar-fill.today { background: linear-gradient(180deg, #6366F1, #4F46E5); }
+.bar-fill.normal { background: var(--surface-2); }
+
+.cat-list-card { margin: 10px 16px 0; overflow: hidden; }
+.cat-list-card h3 { font-size: 13px; font-weight: 600; color: var(--text-1); padding: 14px 16px 8px; border-bottom: 1px solid var(--border); }
+.cat-row { display: flex; align-items: center; gap: 11px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); }
+.cat-row:last-child { border-bottom: none; }
+.cat-ico { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+.cat-inf { flex: 1; }
+.cat-nm { font-size: 14px; font-weight: 600; color: var(--text-1); }
+.cat-cnt { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+.cat-bar { height: 3px; border-radius: 2px; margin-top: 5px; }
+.cat-rt { text-align: right; flex-shrink: 0; }
+.cat-rt .amt { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text-1); }
+.cat-rt .pct { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+/* ══════════════════════════════════════
+   IMPULSE
+══════════════════════════════════════ */
+.impulse-hero {
+  margin: 12px 16px 0; background: linear-gradient(135deg, #F59E0B, #F97316);
+  border-radius: var(--radius); padding: 14px 16px; display: flex; gap: 12px; align-items: center; flex-shrink: 0;
+}
+.imp-hero-icon { font-size: 30px; }
+.imp-hero-title { font-size: 14px; font-weight: 700; color: white; }
+.imp-hero-sub { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 2px; }
+
+.imp-saved-card { margin: 10px 16px 0; padding: 12px 16px; display: flex; align-items: center; gap: 14px; }
+.imp-saved-icon { font-size: 26px; }
+.imp-saved-inf { flex: 1; }
+.imp-saved-lbl { font-size: 11px; color: var(--text-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.imp-saved-val { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 500; color: var(--success); margin-top: 2px; }
+
+.imp-item-card { margin: 10px 16px 0; overflow: hidden; }
+.imp-item-top { padding: 13px 14px; display: flex; gap: 11px; align-items: center; }
+.imp-item-emoji { width: 46px; height: 46px; background: var(--surface-2); border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.imp-item-info { flex: 1; min-width: 0; }
+.imp-item-name { font-size: 15px; font-weight: 700; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-item-store { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+.imp-price { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 500; color: var(--text-1); text-align: right; flex-shrink: 0; }
+
+.imp-item-body { padding: 0 14px 13px; border-top: 1px solid var(--border); }
+.imp-work-row { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 9px; padding: 9px 11px; margin-top: 10px; margin-bottom: 8px; }
+.imp-work-lbl { font-size: 12px; color: var(--text-2); flex: 1; }
+.imp-work-val { font-size: 13px; font-weight: 700; color: var(--warning); }
+.imp-timer { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px; background: var(--warning-bg); border-radius: 9px; margin-bottom: 10px; }
+.imp-timer-txt { font-size: 13px; font-weight: 600; color: #92400E; }
+.dark .imp-timer-txt { color: #FCD34D; }
+.imp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.imp-btn { padding: 10px; border-radius: 10px; font-size: 13px; font-weight: 600; text-align: center; cursor: pointer; border: none; font-family: 'Inter', sans-serif; }
+.imp-btn.skip { background: var(--danger-bg); color: #991B1B; }
+.dark .imp-btn.skip { color: #FCA5A5; }
+.imp-btn.chat { background: var(--primary); color: white; }
+
+.imp-decided { margin: 10px 16px 0; overflow: hidden; }
+.imp-decided-lbl { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; padding: 12px 4px 6px; }
+.imp-hist-item { display: flex; align-items: center; gap: 11px; padding: 11px 14px; border-bottom: 1px solid var(--border-soft); }
+.imp-hist-item:last-child { border-bottom: none; }
+.imp-hist-emoji { font-size: 22px; }
+.imp-hist-info { flex: 1; }
+.imp-hist-name { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.imp-hist-price { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+.imp-hist-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px; flex-shrink: 0; }
+.badge-skip { background: var(--success-bg); color: #065F46; }
+.dark .badge-skip { color: #34D399; }
+.badge-bought { background: var(--danger-bg); color: #991B1B; }
+.dark .badge-bought { color: #FCA5A5; }
+
+/* ══════════════════════════════════════
+   SETTINGS
+══════════════════════════════════════ */
+.profile-card { margin: 12px 16px 0; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+.avatar { width: 52px; height: 52px; border-radius: 26px; background: linear-gradient(135deg, #4F46E5, #818CF8); display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 700; color: white; flex-shrink: 0; }
+.profile-name { font-size: 17px; font-weight: 700; color: var(--text-1); }
+.profile-email { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+
+.settings-sec { margin: 12px 16px 0; }
+.settings-sec-lbl { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.7px; padding: 0 4px; margin-bottom: 6px; }
+.settings-list { overflow: hidden; }
+.settings-row { display: flex; align-items: center; gap: 13px; padding: 13px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background 0.15s; }
+.settings-row:last-child { border-bottom: none; }
+.settings-ico { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.settings-row-info { flex: 1; }
+.settings-row-name { font-size: 14px; font-weight: 500; color: var(--text-1); }
+.settings-row-val { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+.settings-chev { color: var(--text-3); }
+.settings-chev svg { width: 14px; height: 14px; stroke: var(--text-3); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.toggle { width: 44px; height: 26px; background: var(--success); border-radius: 13px; position: relative; cursor: pointer; transition: background 0.25s; flex-shrink: 0; }
+.toggle.off { background: var(--border); }
+.toggle::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 10px; background: white; top: 3px; right: 3px; transition: right 0.25s, left 0.25s; box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+.toggle.off::after { right: auto; left: 3px; }
+
+/* ══════════════════════════════════════
+   MODAL (Quick Add)
+══════════════════════════════════════ */
+.modal-overlay {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.52); z-index: 200;
+  display: none; align-items: flex-end;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet { background: var(--surface); border-radius: 24px 24px 0 0; width: 100%; padding: 14px 16px 34px; animation: slideUp 0.25s cubic-bezier(0.32,0.72,0,1); }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 14px; }
+.modal-title { font-size: 18px; font-weight: 700; color: var(--text-1); margin-bottom: 14px; }
+.amount-display { text-align: center; padding: 8px 0; }
+.amount-big { font-family: 'JetBrains Mono', monospace; font-size: 42px; font-weight: 500; color: var(--text-1); display: block; }
+.amount-currency { font-size: 13px; color: var(--text-2); font-weight: 500; }
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 14px; }
+.cat-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px; border-radius: 12px; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; }
+.cat-cell.sel { border-color: var(--primary); background: var(--primary-bg); }
+.cat-cell-ico { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.cat-cell-lbl { font-size: 10px; font-weight: 500; color: var(--text-2); text-align: center; }
+.save-btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 4px; }
+.save-btn:active { opacity: 0.85; }
+
+/* ══════════════════════════════════════
+   AI CHAT MODAL
+══════════════════════════════════════ */
+.ai-modal { position: absolute; inset: 0; background: var(--bg); z-index: 300; display: none; flex-direction: column; transition: background 0.3s; }
+.ai-modal.open { display: flex; animation: fadeSlide 0.2s ease; }
+.ai-modal-header { background: var(--surface); padding: 14px 16px 12px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.ai-modal-back { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.ai-modal-back svg { width: 18px; height: 18px; stroke: var(--primary); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.ai-modal-title { flex: 1; }
+.ai-modal-title h2 { font-size: 16px; font-weight: 700; color: var(--text-1); }
+.ai-modal-title p { font-size: 12px; color: var(--success); font-weight: 500; }
+.ai-model-badge { background: var(--primary-bg); color: var(--primary); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 10px; }
+.ai-messages { flex: 1; overflow-y: auto; padding: 14px 14px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: none; }
+.ai-messages::-webkit-scrollbar { display: none; }
+.ai-bubble { max-width: 85%; padding: 10px 13px; border-radius: 16px; font-size: 13px; line-height: 1.45; color: var(--text-1); }
+.ai-bubble.assistant { background: var(--surface); align-self: flex-start; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.ai-bubble.user { background: var(--primary); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+.ai-bubble strong { font-weight: 700; }
+.ai-bubble ul { margin-left: 14px; margin-top: 4px; }
+.ai-bubble ul li { margin-top: 3px; }
+.ai-typing { display: flex; gap: 4px; padding: 10px 14px; background: var(--surface); border-radius: 16px; border-bottom-left-radius: 4px; align-self: flex-start; width: fit-content; border: 1px solid var(--border); }
+.dot { width: 7px; height: 7px; border-radius: 4px; background: var(--text-3); animation: bounce 1.3s infinite; }
+.dot:nth-child(2) { animation-delay: 0.15s; }
+.dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+.ai-input-bar { padding: 10px 14px; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-shrink: 0; transition: background 0.3s; }
+.ai-input { flex: 1; background: var(--surface-2); border: none; outline: none; border-radius: 20px; padding: 9px 14px; font-size: 14px; color: var(--text-1); font-family: 'Inter', sans-serif; }
+.ai-send { width: 36px; height: 36px; background: var(--primary); border-radius: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.ai-send svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.alt-card { background: var(--primary-bg); border: 1px solid rgba(99,102,241,0.2); border-radius: 12px; padding: 11px 12px; margin-top: 4px; }
+.alt-card-title { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 7px; }
+.alt-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(99,102,241,0.1); }
+.alt-item:last-child { border-bottom: none; }
+.alt-name { font-size: 12px; color: var(--text-1); font-weight: 500; }
+.alt-price { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--success); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <span class="top-label">Nexpense</span>
+  <button class="ctrl-btn" onclick="toggleDark()">🌙 Sötét mód</button>
+  <button class="ctrl-btn" onclick="openAI()">🤖 AI Chat demo</button>
+</div>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+
+  <!-- Status bar -->
+  <div class="status-bar" id="status-bar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <svg viewBox="0 0 24 24"><path d="M1 8C1 5.2 3.2 3 6 3h12c2.8 0 5 2.2 5 5v8c0 2.8-2.2 5-5 5H6C3.2 21 1 18.8 1 16V8z" fill-opacity="0.2"/><path d="M6 9h12v6H6z"/></svg>
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.7 2 5.8 3.4 3.8 5.7L2 4l1 5h5l-1.5-1.5C7.8 6 9.8 5 12 5c3.9 0 7 3.1 7 7s-3.1 7-7 7-7-3.1-7-7H2c0 5.5 4.5 10 10 10s10-4.5 10-10S17.5 2 12 2z" fill-opacity="0"/><ellipse rx="4" ry="6" cx="19" cy="12" transform="rotate(-30 19 12)" fill-opacity="0.9"/></svg>
+      <!-- Battery -->
+      <svg viewBox="0 0 25 12" width="25" height="12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke-width="1.2" fill="none" stroke="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor"/></svg>
+    </div>
+  </div>
+
+  <!-- Screens -->
+  <div class="screens" id="screens">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="screen active" id="s-dashboard">
+      <!-- Hero -->
+      <div class="dash-hero" style="flex-shrink:0">
+        <div class="dash-top">
+          <div>
+            <div class="dash-greeting">Jó reggelt,</div>
+            <div class="dash-name">Kis Martin 👋</div>
+          </div>
+          <div class="notif-btn">
+            <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+        </div>
+        <div class="dash-total-lbl">Február összes kiadás</div>
+        <div class="dash-total">127 450 Ft</div>
+        <div class="dash-badge">↓ 12% az előző hónaphoz képest</div>
+      </div>
+
+      <!-- Cards -->
+      <div class="dash-cards">
+
+        <!-- Progress card -->
+        <div class="card prog-card">
+          <div class="prog-row">
+            <span class="lbl">Havi büdzsé</span>
+            <span class="val">150 000 Ft keret</span>
+          </div>
+          <div class="prog-bg">
+            <div class="prog-fill" style="width:85%"></div>
+          </div>
+          <div class="prog-lbls">
+            <span>127 450 Ft elköltve</span>
+            <span>22 550 Ft maradt</span>
+          </div>
+        </div>
+
+        <!-- Donut chart -->
+        <div class="card donut-card">
+          <h3>Kategória megoszlás</h3>
+          <div class="donut-wrap">
+            <svg class="donut-svg" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#F3F4F6" stroke-width="14"/>
+              <!-- Étel 38% -->
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#F97316" stroke-width="14"
+                stroke-dasharray="90.7 148.3" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+              <!-- Transport 23% -->
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#3B82F6" stroke-width="14"
+                stroke-dasharray="54.9 184.1" stroke-dashoffset="-90.7" transform="rotate(-90 50 50)"/>
+              <!-- Vásárlás 18% -->
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#EC4899" stroke-width="14"
+                stroke-dasharray="43 196" stroke-dashoffset="-145.6" transform="rotate(-90 50 50)"/>
+              <!-- Egyéb 21% -->
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#8B5CF6" stroke-width="14"
+                stroke-dasharray="50.2 188.8" stroke-dashoffset="-188.6" transform="rotate(-90 50 50)"/>
+              <text x="50" y="46" text-anchor="middle" font-size="11" font-weight="700" fill="#4F46E5" font-family="JetBrains Mono">127K</text>
+              <text x="50" y="57" text-anchor="middle" font-size="8" fill="#9CA3AF" font-family="Inter">HUF</text>
+            </svg>
+            <div class="legend">
+              <div class="leg-row"><div class="leg-dot" style="background:#F97316"></div><span class="leg-name">Étel & Ital</span><span class="leg-pct">38%</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:#3B82F6"></div><span class="leg-name">Transport</span><span class="leg-pct">23%</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:#EC4899"></div><span class="leg-name">Vásárlás</span><span class="leg-pct">18%</span></div>
+              <div class="leg-row"><div class="leg-dot" style="background:#8B5CF6"></div><span class="leg-name">Szórakozás</span><span class="leg-pct">21%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Insight -->
+        <div class="ai-card">
+          <div class="ai-ico">✨</div>
+          <div>
+            <div class="ai-lbl">AI Elemzés</div>
+            <div class="ai-text">Étkezésre <strong>23%-kal többet</strong> költöttél januárhoz képest. Főleg hétvégén jelenik meg a különbség – érdemes lehet otthon főzni!</div>
+          </div>
+        </div>
+
+        <!-- Recent expenses -->
+        <div>
+          <div class="section-hd" style="margin-bottom:8px">
+            <h3>Legutóbbi kiadások</h3>
+            <a onclick="switchTab('expenses')">Mind</a>
+          </div>
+          <div class="card exp-list">
+            <div class="exp-item">
+              <div class="exp-ico" style="background:#FFF7ED"><span>🛒</span></div>
+              <div class="exp-info"><div class="exp-name">Lidl</div><div class="exp-cat">Étel & Ital · #heti vásárlás</div></div>
+              <div class="exp-right"><div class="exp-amt">4 320 Ft</div><div class="exp-time">ma 09:15</div></div>
+            </div>
+            <div class="exp-item">
+              <div class="exp-ico" style="background:#EFF6FF"><span>🚌</span></div>
+              <div class="exp-info"><div class="exp-name">BKK bérlet</div><div class="exp-cat">Transport</div></div>
+              <div class="exp-right"><div class="exp-amt">9 500 Ft</div><div class="exp-time">tegnap</div></div>
+            </div>
+            <div class="exp-item">
+              <div class="exp-ico" style="background:#FDF2F8"><span>👗</span></div>
+              <div class="exp-info"><div class="exp-name">Zara</div><div class="exp-cat">Vásárlás · #ruha</div></div>
+              <div class="exp-right"><div class="exp-amt">18 990 Ft</div><div class="exp-time">tegnap</div></div>
+            </div>
+            <div class="exp-item">
+              <div class="exp-ico" style="background:#FFF7ED"><span>🍔</span></div>
+              <div class="exp-info"><div class="exp-name">McDonald's</div><div class="exp-cat">Étel & Ital · #gyorsétterem</div></div>
+              <div class="exp-right"><div class="exp-amt">2 850 Ft</div><div class="exp-time">febr. 26</div></div>
+            </div>
+            <div class="exp-item">
+              <div class="exp-ico" style="background:#FFF7ED"><span>🥦</span></div>
+              <div class="exp-info"><div class="exp-name">Bolt Szupermarket</div><div class="exp-cat">Étel & Ital</div></div>
+              <div class="exp-right"><div class="exp-amt">6 700 Ft</div><div class="exp-time">febr. 26</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dash-cards -->
+
+      <!-- FAB -->
+      <div class="fab" onclick="openQuickAdd()">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+    </div><!-- /dashboard -->
+
+    <!-- ══ EXPENSES ══ -->
+    <div class="screen" id="s-expenses">
+      <div class="search-wrap">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Keresés...</span>
+        </div>
+      </div>
+      <div class="chips">
+        <div class="chip on">Mind</div>
+        <div class="chip">Étel</div>
+        <div class="chip">Transport</div>
+        <div class="chip">Vásárlás</div>
+        <div class="chip">Szórakozás</div>
+        <div class="chip">Egészség</div>
+      </div>
+      <div style="flex:1; overflow-y:auto; scrollbar-width:none; padding-bottom:20px;">
+        <div class="day-grp">
+          <div class="day-lbl">Ma – febr. 28.</div>
+          <div class="card exp-list">
+            <div class="exp-item"><div class="exp-ico" style="background:#FFF7ED">🛒</div><div class="exp-info"><div class="exp-name">Lidl</div><div class="exp-cat">Étel & Ital · #heti vásárlás</div></div><div class="exp-right"><div class="exp-amt">4 320 Ft</div><div class="exp-time">09:15</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#EFF6FF">☕</div><div class="exp-info"><div class="exp-name">Costa Coffee</div><div class="exp-cat">Étel & Ital · #kávé</div></div><div class="exp-right"><div class="exp-amt">1 290 Ft</div><div class="exp-time">08:02</div></div></div>
+          </div>
+        </div>
+        <div class="day-grp">
+          <div class="day-lbl">Tegnap – febr. 27.</div>
+          <div class="card exp-list">
+            <div class="exp-item"><div class="exp-ico" style="background:#EFF6FF">🚌</div><div class="exp-info"><div class="exp-name">BKK bérlet</div><div class="exp-cat">Transport · #havi</div></div><div class="exp-right"><div class="exp-amt">9 500 Ft</div><div class="exp-time">18:30</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#FDF2F8">👗</div><div class="exp-info"><div class="exp-name">Zara</div><div class="exp-cat">Vásárlás · #ruha</div></div><div class="exp-right"><div class="exp-amt">18 990 Ft</div><div class="exp-time">14:10</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#F5F3FF">🎬</div><div class="exp-info"><div class="exp-name">Cinema City</div><div class="exp-cat">Szórakozás · #mozi</div></div><div class="exp-right"><div class="exp-amt">3 800 Ft</div><div class="exp-time">20:00</div></div></div>
+          </div>
+        </div>
+        <div class="day-grp">
+          <div class="day-lbl">Febr. 26.</div>
+          <div class="card exp-list">
+            <div class="exp-item"><div class="exp-ico" style="background:#FFF7ED">🍔</div><div class="exp-info"><div class="exp-name">McDonald's</div><div class="exp-cat">Étel & Ital · #gyorsétterem</div></div><div class="exp-right"><div class="exp-amt">2 850 Ft</div><div class="exp-time">13:20</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#FFF7ED">🥦</div><div class="exp-info"><div class="exp-name">Bolt Szupermarket</div><div class="exp-cat">Étel & Ital</div></div><div class="exp-right"><div class="exp-amt">6 700 Ft</div><div class="exp-time">10:45</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#F0FDF4">💊</div><div class="exp-info"><div class="exp-name">Gyógyszertár</div><div class="exp-cat">Egészség</div></div><div class="exp-right"><div class="exp-amt">4 200 Ft</div><div class="exp-time">09:00</div></div></div>
+          </div>
+        </div>
+        <div class="day-grp">
+          <div class="day-lbl">Febr. 25.</div>
+          <div class="card exp-list">
+            <div class="exp-item"><div class="exp-ico" style="background:#FEF9C3">⚡</div><div class="exp-info"><div class="exp-name">E.ON Villany számla</div><div class="exp-cat">Lakás & Rezsi</div></div><div class="exp-right"><div class="exp-amt">22 400 Ft</div><div class="exp-time">11:00</div></div></div>
+            <div class="exp-item"><div class="exp-ico" style="background:#EFF6FF">🎵</div><div class="exp-info"><div class="exp-name">Spotify Premium</div><div class="exp-cat">Előfizetések · #zene</div></div><div class="exp-right"><div class="exp-amt">2 290 Ft</div><div class="exp-time">00:00</div></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:0 16px 16px; flex-shrink:0;">
+        <button class="save-btn" onclick="openQuickAdd()">+ Kiadás hozzáadása</button>
+      </div>
+    </div><!-- /expenses -->
+
+    <!-- ══ ANALYTICS ══ -->
+    <div class="screen" id="s-analytics">
+      <div class="nav-header">
+        <h1>Kimutatások</h1>
+        <p>Február 2026</p>
+      </div>
+      <div style="flex:1; overflow-y:auto; scrollbar-width:none; padding-bottom:20px;">
+        <div class="period-sel">
+          <div class="per-opt">Hét</div>
+          <div class="per-opt on">Hónap</div>
+          <div class="per-opt">Év</div>
+        </div>
+
+        <div class="card analytics-summary-card">
+          <div class="an-lbl">Összes kiadás</div>
+          <div class="an-total">127 450 Ft</div>
+          <div class="an-change neg">↓ 12 340 Ft kevesebb mint januárban</div>
+        </div>
+
+        <!-- Bar chart (daily) -->
+        <div class="card bar-chart-card mt12 px" style="margin:10px 16px 0">
+          <h3>Napi kiadások (február)</h3>
+          <div class="bars">
+            <div class="bar-col"><div class="bar-fill normal" style="height:35%"></div><div class="bar-lbl">H</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:55%"></div><div class="bar-lbl">K</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:20%"></div><div class="bar-lbl">Sze</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:80%"></div><div class="bar-lbl">Cs</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:65%"></div><div class="bar-lbl">P</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:45%"></div><div class="bar-lbl">Szo</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:30%"></div><div class="bar-lbl">V</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:50%"></div><div class="bar-lbl">H</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:40%"></div><div class="bar-lbl">K</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:70%"></div><div class="bar-lbl">Sze</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:25%"></div><div class="bar-lbl">Cs</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:60%"></div><div class="bar-lbl">P</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:90%"></div><div class="bar-lbl">Szo</div></div>
+            <div class="bar-col"><div class="bar-fill normal" style="height:15%"></div><div class="bar-lbl">V</div></div>
+            <div class="bar-col"><div class="bar-fill today" style="height:42%"></div><div class="bar-lbl">Ma</div></div>
+          </div>
+        </div>
+
+        <!-- Category breakdown -->
+        <div class="card cat-list-card">
+          <h3>Kategória részletezés</h3>
+          <div class="cat-row">
+            <div class="cat-ico" style="background:#FFF7ED">🍽️</div>
+            <div class="cat-inf">
+              <div class="cat-nm">Étel & Ital</div>
+              <div class="cat-cnt">18 tranzakció</div>
+              <div class="cat-bar" style="background:#F97316; width:100%"></div>
+            </div>
+            <div class="cat-rt"><div class="amt">48 340 Ft</div><div class="pct">38%</div></div>
+          </div>
+          <div class="cat-row">
+            <div class="cat-ico" style="background:#EFF6FF">🚌</div>
+            <div class="cat-inf">
+              <div class="cat-nm">Transport</div>
+              <div class="cat-cnt">5 tranzakció</div>
+              <div class="cat-bar" style="background:#3B82F6; width:60%"></div>
+            </div>
+            <div class="cat-rt"><div class="amt">29 800 Ft</div><div class="pct">23%</div></div>
+          </div>
+          <div class="cat-row">
+            <div class="cat-ico" style="background:#FDF2F8">🛍️</div>
+            <div class="cat-inf">
+              <div class="cat-nm">Vásárlás</div>
+              <div class="cat-cnt">7 tranzakció</div>
+              <div class="cat-bar" style="background:#EC4899; width:47%"></div>
+            </div>
+            <div class="cat-rt"><div class="amt">22 990 Ft</div><div class="pct">18%</div></div>
+          </div>
+          <div class="cat-row">
+            <div class="cat-ico" style="background:#F5F3FF">🎬</div>
+            <div class="cat-inf">
+              <div class="cat-nm">Szórakozás</div>
+              <div class="cat-cnt">4 tranzakció</div>
+              <div class="cat-bar" style="background:#8B5CF6; width:37%"></div>
+            </div>
+            <div class="cat-rt"><div class="amt">14 920 Ft</div><div class="pct">12%</div></div>
+          </div>
+          <div class="cat-row">
+            <div class="cat-ico" style="background:#FEF9C3">⚡</div>
+            <div class="cat-inf">
+              <div class="cat-nm">Lakás & Rezsi</div>
+              <div class="cat-cnt">2 tranzakció</div>
+              <div class="cat-bar" style="background:#6366F1; width:28%"></div>
+            </div>
+            <div class="cat-rt"><div class="amt">11 400 Ft</div><div class="pct">9%</div></div>
+          </div>
+        </div>
+
+        <!-- AI insight in analytics -->
+        <div style="padding: 10px 16px 0;">
+          <div class="ai-card">
+            <div class="ai-ico">📊</div>
+            <div>
+              <div class="ai-lbl">Havi összefoglaló</div>
+              <div class="ai-text">Péntekeken átlagosan <strong>3x annyit</strong> költesz mint hétköznapokon. A legtöbb kiadás 12:00–14:00 között és 18:00–20:00 után jelenik meg.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /analytics -->
+
+    <!-- ══ IMPULSE ══ -->
+    <div class="screen" id="s-impulse">
+      <div class="nav-header">
+        <h1>Impulzus Check ⚡</h1>
+        <p>Gondold meg kétszer mielőtt vásárolsz</p>
+      </div>
+      <div style="flex:1; overflow-y:auto; scrollbar-width:none; padding-bottom:20px;">
+
+        <!-- Megtakarítás összesítő -->
+        <div class="card imp-saved-card" style="margin:12px 16px 0;">
+          <div class="imp-saved-icon">🎉</div>
+          <div class="imp-saved-inf">
+            <div class="imp-saved-lbl">Eddig megspóroltad</div>
+            <div class="imp-saved-val">+ 42 990 Ft</div>
+          </div>
+          <div style="font-size:12px; color:var(--text-2); text-align:right; line-height:1.4;">1 visszautasított<br>impulzusvásárlás</div>
+        </div>
+
+        <!-- Figyelő fejléc -->
+        <div class="impulse-hero">
+          <div class="imp-hero-icon">⏳</div>
+          <div>
+            <div class="imp-hero-title">2 tétel vár döntésre</div>
+            <div class="imp-hero-sub">Az órabéred: 13 300 Ft/h – megéri?</div>
+          </div>
+        </div>
+
+        <!-- Item 1 -->
+        <div class="card imp-item-card">
+          <div class="imp-item-top">
+            <div class="imp-item-emoji">👟</div>
+            <div class="imp-item-info">
+              <div class="imp-item-name">Nike Air Max 270</div>
+              <div class="imp-item-store">Nike.com · Sportcipő</div>
+            </div>
+            <div class="imp-price">42 990 Ft</div>
+          </div>
+          <div class="imp-item-body">
+            <div class="imp-work-row">
+              <span class="imp-work-lbl">⏱️ Ezért ennyit dolgozol</span>
+              <span class="imp-work-val">3 óra 14 perc</span>
+            </div>
+            <div class="imp-timer">
+              <span style="font-size:14px">⏰</span>
+              <span class="imp-timer-txt">Még 14 óra 23 perc a gondolkodási idő</span>
+            </div>
+            <div class="imp-actions">
+              <button class="imp-btn skip">✕ Mégse kell</button>
+              <button class="imp-btn chat" onclick="openAI()">🤖 AI Tanácsot kérek</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Item 2 -->
+        <div class="card imp-item-card">
+          <div class="imp-item-top">
+            <div class="imp-item-emoji">🎧</div>
+            <div class="imp-item-info">
+              <div class="imp-item-name">Sony WH-1000XM5</div>
+              <div class="imp-item-store">MediaMarkt · Headset</div>
+            </div>
+            <div class="imp-price">129 000 Ft</div>
+          </div>
+          <div class="imp-item-body">
+            <div class="imp-work-row">
+              <span class="imp-work-lbl">⏱️ Ezért ennyit dolgozol</span>
+              <span class="imp-work-val">9 óra 42 perc</span>
+            </div>
+            <div class="imp-timer" style="background:var(--danger-bg)">
+              <span style="font-size:14px">🔔</span>
+              <span class="imp-timer-txt" style="color:#991B1B">24 óra letelt – döntés szükséges!</span>
+            </div>
+            <div class="imp-actions">
+              <button class="imp-btn skip">✕ Mégse kell</button>
+              <button class="imp-btn chat" onclick="openAI()">🤖 AI Tanácsot kérek</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="imp-decided" style="padding-bottom:0">
+          <div class="imp-decided-lbl" style="padding:12px 16px 6px">Korábbi döntések</div>
+          <div class="card exp-list" style="margin:0 16px">
+            <div class="imp-hist-item">
+              <div class="imp-hist-emoji">📱</div>
+              <div class="imp-hist-info"><div class="imp-hist-name">iPad Pro 11" M4</div><div class="imp-hist-price">739 990 Ft · febr. 10.</div></div>
+              <div class="imp-hist-badge badge-skip">✓ Megspóroltam</div>
+            </div>
+            <div class="imp-hist-item">
+              <div class="imp-hist-emoji">☕</div>
+              <div class="imp-hist-info"><div class="imp-hist-name">DeLonghi Dedica kávégép</div><div class="imp-hist-price">89 990 Ft · jan. 28.</div></div>
+              <div class="imp-hist-badge badge-bought">Megvettem</div>
+            </div>
+            <div class="imp-hist-item">
+              <div class="imp-hist-emoji">🧥</div>
+              <div class="imp-hist-info"><div class="imp-hist-name">Tommy Hilfiger kabát</div><div class="imp-hist-price">62 000 Ft · jan. 14.</div></div>
+              <div class="imp-hist-badge badge-skip">✓ Megspóroltam</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /impulse -->
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="screen" id="s-settings">
+      <div class="nav-header">
+        <h1>Beállítások</h1>
+      </div>
+      <div style="flex:1; overflow-y:auto; scrollbar-width:none; padding-bottom:20px;">
+
+        <div class="card profile-card">
+          <div class="avatar">KM</div>
+          <div>
+            <div class="profile-name">Kis Martin</div>
+            <div class="profile-email">kis.martin@email.com</div>
+          </div>
+        </div>
+
+        <div class="settings-sec">
+          <div class="settings-sec-lbl">Pénzügyek</div>
+          <div class="card settings-list">
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#EFF6FF">💰</div>
+              <div class="settings-row-info"><div class="settings-row-name">Órabér</div><div class="settings-row-val">13 300 Ft / óra</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#F0FDF4">💱</div>
+              <div class="settings-row-info"><div class="settings-row-name">Deviza</div><div class="settings-row-val">Magyar forint (HUF)</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#FFF7ED">🎯</div>
+              <div class="settings-row-info"><div class="settings-row-name">Havi büdzsé keret</div><div class="settings-row-val">150 000 Ft</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-sec">
+          <div class="settings-sec-lbl">Kategóriák & Cimkék</div>
+          <div class="card settings-list">
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#F5F3FF">🏷️</div>
+              <div class="settings-row-info"><div class="settings-row-name">Kategóriák kezelése</div><div class="settings-row-val">14 rendszer + 2 egyedi</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#EEF2FF">🔖</div>
+              <div class="settings-row-info"><div class="settings-row-name">Cimkék</div><div class="settings-row-val">8 aktív cimke</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-sec">
+          <div class="settings-sec-lbl">Értesítések & Integráció</div>
+          <div class="card settings-list">
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#FEF3C7">🔔</div>
+              <div class="settings-row-info"><div class="settings-row-name">Push értesítések</div><div class="settings-row-val">Impulzus figyelmeztetők</div></div>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#F0FDF4">📍</div>
+              <div class="settings-row-info"><div class="settings-row-name">Helymeghatározás</div><div class="settings-row-val">Auto kategória javaslat</div></div>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#EFF6FF">💳</div>
+              <div class="settings-row-info"><div class="settings-row-name">Apple Pay észlelés</div><div class="settings-row-val">Fizetés után azonnal rögzít</div></div>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-sec">
+          <div class="settings-sec-lbl">Megjelenés</div>
+          <div class="card settings-list">
+            <div class="settings-row">
+              <div class="settings-ico" style="background:#1C1C1E">🌙</div>
+              <div class="settings-row-info"><div class="settings-row-name">Sötét mód</div><div class="settings-row-val">Rendszer alapján</div></div>
+              <div class="toggle off" id="dark-toggle" onclick="toggleDark(); this.classList.toggle('off')"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-sec">
+          <div class="card settings-list">
+            <div class="settings-row" style="color:var(--danger)">
+              <div class="settings-ico" style="background:#FEE2E2">🚪</div>
+              <div class="settings-row-info"><div class="settings-row-name" style="color:var(--danger)">Kijelentkezés</div></div>
+              <div class="settings-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /settings -->
+
+  </div><!-- /screens -->
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <div class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Főoldal</span>
+    </div>
+    <div class="tab" id="tab-expenses" onclick="switchTab('expenses')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span>Kiadások</span>
+    </div>
+    <div class="tab" id="tab-analytics" onclick="switchTab('analytics')">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Kimutatások</span>
+    </div>
+    <div class="tab" id="tab-impulse" onclick="switchTab('impulse')">
+      <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      <span>Impulzus</span>
+      <div class="tab-badge">2</div>
+    </div>
+    <div class="tab" id="tab-settings" onclick="switchTab('settings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Beállítások</span>
+    </div>
+  </div>
+
+  <!-- Quick Add Modal -->
+  <div class="modal-overlay" id="quick-add-modal" onclick="if(event.target===this)closeQuickAdd()">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Kiadás hozzáadása</div>
+      <div class="amount-display">
+        <span class="amount-big">3 500</span>
+        <span class="amount-currency">Magyar forint (HUF)</span>
+      </div>
+      <div class="divider"></div>
+      <div class="cat-grid">
+        <div class="cat-cell sel">
+          <div class="cat-cell-ico" style="background:#FFF7ED">🍽️</div>
+          <div class="cat-cell-lbl">Étel</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#EFF6FF">🚌</div>
+          <div class="cat-cell-lbl">Transport</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#FDF2F8">🛍️</div>
+          <div class="cat-cell-lbl">Vásárlás</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#F5F3FF">🎬</div>
+          <div class="cat-cell-lbl">Szórakozás</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#F0FDF4">💊</div>
+          <div class="cat-cell-lbl">Egészség</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#FEF9C3">⚡</div>
+          <div class="cat-cell-lbl">Rezsi</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#EFF6FF">🎵</div>
+          <div class="cat-cell-lbl">Előfizetés</div>
+        </div>
+        <div class="cat-cell" onclick="selectCat(this)">
+          <div class="cat-cell-ico" style="background:#F9FAFB">📦</div>
+          <div class="cat-cell-lbl">Egyéb</div>
+        </div>
+      </div>
+      <button class="save-btn" onclick="closeQuickAdd()">Mentés</button>
+    </div>
+  </div>
+
+  <!-- AI Chat Modal -->
+  <div class="ai-modal" id="ai-modal">
+    <div class="ai-modal-header">
+      <div class="ai-modal-back" onclick="closeAI()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </div>
+      <div class="ai-modal-title">
+        <h2>Nexpense AI</h2>
+        <p>● Online – Claude 3.5 Haiku</p>
+      </div>
+      <div class="ai-model-badge">AI</div>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-bubble assistant">
+        👋 Szia! Látom, hogy <strong>Nike Air Max 270</strong> cipőt szeretnél venni <strong>42 990 Ft-ért</strong>.<br><br>
+        Ez <strong>3 óra 14 perc</strong> munkádat jelenti a jelenlegi órabéred alapján.<br><br>
+        Mesélj – mire kellene a cipő?
+      </div>
+      <div class="ai-bubble user">Futáshoz kellene, a régi cipőm elszakadt</div>
+      <div class="ai-bubble assistant">
+        Rendben, ha valóban futáshoz kell, az fontos és indokolt! 🏃‍♂️<br><br>
+        Néhány kérdés mielőtt döntesz:<br>
+        <ul>
+          <li>Milyen gyakran futsz? (hetente hányszor?)</li>
+          <li>Az Air Max futócipőnek inkább casual, nem igazi futócipő – ez neked OK?</li>
+        </ul>
+        <div class="alt-card">
+          <div class="alt-card-title">🔍 Olcsóbb alternatívák</div>
+          <div class="alt-item"><span class="alt-name">Adidas Runfalcon 3.0</span><span class="alt-price">18 900 Ft</span></div>
+          <div class="alt-item"><span class="alt-name">Nike Revolution 7</span><span class="alt-price">27 990 Ft</span></div>
+          <div class="alt-item"><span class="alt-name">Puma Softride Remi</span><span class="alt-price">22 490 Ft</span></div>
+        </div>
+      </div>
+      <div class="ai-bubble user">Heti 3x futok, de igaz, inkább casual cipőnek néz ki</div>
+      <div class="ai-bubble assistant">
+        Ha heti 3x futsz, egy <strong>igazi futócipő jobb befektetés</strong> lenne – kevésbé fárasztja a lábad és tovább bírja. 💪<br><br>
+        Az <strong>Adidas Runfalcon 3.0</strong> (18 900 Ft) kiváló futócipő, és <strong>24 090 Ft-tal olcsóbb</strong> az Air Maxnél – ez 1 óra 49 perc munkával kevesebb! Érdemes megfontolni.
+      </div>
+    </div>
+    <div class="ai-input-bar">
+      <input class="ai-input" placeholder="Írj üzenetet..." id="ai-input" onkeydown="if(event.key==='Enter')sendMsg()">
+      <div class="ai-send" onclick="sendMsg()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /phone -->
+
+<script>
+// ── TAB NAVIGATION ──
+function switchTab(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('s-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── DARK MODE ──
+let isDark = false;
+function toggleDark() {
+  isDark = !isDark;
+  document.getElementById('phone').classList.toggle('dark', isDark);
+  document.getElementById('status-bar').style.background = isDark ? '#1C1C1E' : '';
+}
+
+// ── QUICK ADD MODAL ──
+function openQuickAdd() {
+  document.getElementById('quick-add-modal').classList.add('open');
+}
+function closeQuickAdd() {
+  document.getElementById('quick-add-modal').classList.remove('open');
+}
+function selectCat(el) {
+  document.querySelectorAll('.cat-cell').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+// ── AI MODAL ──
+function openAI() {
+  document.getElementById('ai-modal').classList.add('open');
+  // Scroll to bottom
+  const msgs = document.getElementById('ai-messages');
+  setTimeout(() => msgs.scrollTop = msgs.scrollHeight, 100);
+}
+function closeAI() {
+  document.getElementById('ai-modal').classList.remove('open');
+}
+
+// ── AI SEND MSG ──
+function sendMsg() {
+  const input = document.getElementById('ai-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const msgs = document.getElementById('ai-messages');
+  // Add user bubble
+  const userBubble = document.createElement('div');
+  userBubble.className = 'ai-bubble user';
+  userBubble.textContent = text;
+  msgs.appendChild(userBubble);
+  input.value = '';
+  // Show typing
+  const typing = document.createElement('div');
+  typing.className = 'ai-typing';
+  typing.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  msgs.appendChild(typing);
+  msgs.scrollTop = msgs.scrollHeight;
+  // Simulate AI response
+  setTimeout(() => {
+    msgs.removeChild(typing);
+    const aiBubble = document.createElement('div');
+    aiBubble.className = 'ai-bubble assistant';
+    aiBubble.innerHTML = 'Ez egy hasznos kérdés! Az elemzésem alapján ez a vásárlás belefér a havi büdzsédbe, de érdemes lehet megvárni a szezonális leárazásokat – általában 20-30%-os kedvezmények szoktak lenni tavasszal. 🛍️';
+    msgs.appendChild(aiBubble);
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 1500);
+}
+
+// Update clock
+function updateClock() {
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  document.querySelector('.status-time').textContent = h + ':' + m;
+}
+updateClock();
+setInterval(updateClock, 30000);
+
+// Period selector
+document.querySelectorAll('.per-opt').forEach(opt => {
+  opt.addEventListener('click', function() {
+    document.querySelectorAll('.per-opt').forEach(o => o.classList.remove('on'));
+    this.classList.add('on');
+  });
+});
+
+// Expense filter chips
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+    this.classList.add('on');
+  });
+});
+</script>
+</body>
+</html>
