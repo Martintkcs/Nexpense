@@ -15,7 +15,26 @@
       "Bash(npm install --legacy-peer-deps lucide-react-native)",
       "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(tabs\\)/expenses/\")",
       "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(tabs\\)/impulse/\")",
-      "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(auth\\)/\")"
+      "Bash(ls -la \"E:/Nexpense/apps/mobile/app/\\(auth\\)/\")",
+      "Bash(git status -u)",
+      "Bash(git rm --cached apps/mobile)",
+      "Bash(git add apps/)",
+      "Bash(git commit:*)",
+      "Bash(git push origin master)",
+      "Bash(gh pr:*)",
+      "Bash(gh --version)",
+      "Bash(where gh)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''expo'',{}\\).get\\(''scheme'',''NO SCHEME''\\), indent=2\\)\\)\")",
+      "Bash(git add apps/mobile/app.config.ts package.json apps/mobile/app/\\\\\\(tabs\\\\\\)/impulse/new.tsx)",
+      "Bash(git add docs/STATUS.md)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/react-native-reanimated/package.json''\\).version\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''peerDependencies'',{}\\), indent=2\\)\\)\")",
+      "Bash(npm install react-native-worklets --legacy-peer-deps)",
+      "Bash(node -e \"console.log\\(require\\(''E:/Nexpense/apps/mobile/node_modules/react-native-worklets/package.json''\\).version\\)\")",
+      "Bash(timeout 15 npx expo start --non-interactive)",
+      "Bash(npm install babel-preset-expo --legacy-peer-deps)",
+      "Bash(CI=1 timeout 20 npx expo start)",
+      "Bash(npm install react-dom@19.2.0 react-native-worklets@0.7.2 --legacy-peer-deps)"
     ]
   }
 }
