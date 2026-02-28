@@ -31,7 +31,22 @@ export function useExpenses() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => softDeleteExpense(id),
-    onSuccess: () => {
+    // Optimistic update: remove the item immediately from the cache
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: ['expenses', user?.id] });
+      const previous = queryClient.getQueryData<NewExpense[]>(['expenses', user?.id]);
+      queryClient.setQueryData(['expenses', user?.id], (old: any[]) =>
+        old?.filter(e => e.id !== id) ?? [],
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      // Roll back if the server call fails
+      if (context?.previous) {
+        queryClient.setQueryData(['expenses', user?.id], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly'] });
     },
