@@ -13,11 +13,6 @@
     "supabase:functions:serve": "supabase functions serve"
   },
   "devDependencies": {
-    "@types/react": "~19.1.10",
-    "supabase": "^2.0.0",
-    "typescript": "~5.9.2"
-  },
-  "dependencies": {
-    "expo": "~54.0.0"
+    "supabase": "^2.0.0"
   }
 }
