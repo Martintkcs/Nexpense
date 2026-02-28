@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, Switch,
   StyleSheet, Alert, TextInput, Modal, ActivityIndicator,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/providers/AuthProvider';
@@ -192,50 +193,55 @@ export default function SettingsScreen() {
         <Text style={styles.version}>Nexpense v0.1.0</Text>
       </ScrollView>
 
-      {/* ════ Órabér modal ════ */}
-      <Modal visible={wageModal} transparent animationType="slide" statusBarTranslucent>
-        <Pressable style={styles.overlay} onPress={() => setWageModal(false)}>
-          <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Órabér beállítása</Text>
-            <Text style={styles.sheetHint}>
-              Az impulzus kalkulátor ezzel számolja meg, hány munkaórát ér egy vásárlás.
-            </Text>
+      {/* ════ Órabér modal (centered, keyboard-aware) ════ */}
+      <Modal visible={wageModal} transparent animationType="fade" statusBarTranslucent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setWageModal(false); }}>
+            <View style={styles.overlayCenter}>
+              <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
+                <View style={styles.wageCard}>
+                  <Text style={styles.sheetTitle}>Órabér beállítása</Text>
+                  <Text style={styles.sheetHint}>
+                    Az impulzus kalkulátor ezzel számolja meg, hány munkaórát ér egy vásárlás.
+                  </Text>
 
-            <View style={styles.wageRow}>
-              <TextInput
-                style={styles.wageInput}
-                value={wageInput}
-                onChangeText={setWageInput}
-                keyboardType="numeric"
-                placeholder="pl. 2500"
-                placeholderTextColor="#9CA3AF"
-                autoFocus
-                selectTextOnFocus
-              />
-              <Text style={styles.wageUnit}>Ft / óra</Text>
-            </View>
+                  <View style={styles.wageRow}>
+                    <TextInput
+                      style={styles.wageInput}
+                      value={wageInput}
+                      onChangeText={setWageInput}
+                      keyboardType="numeric"
+                      placeholder="pl. 2500"
+                      placeholderTextColor="#9CA3AF"
+                      autoFocus
+                      selectTextOnFocus
+                    />
+                    <Text style={styles.wageUnit}>Ft / óra</Text>
+                  </View>
 
-            <View style={styles.sheetActions}>
-              <Pressable
-                style={styles.cancelBtn}
-                onPress={() => setWageModal(false)}
-              >
-                <Text style={styles.cancelTxt}>Mégse</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.saveBtn, isUpdating && { opacity: 0.65 }]}
-                onPress={handleSaveWage}
-                disabled={isUpdating}
-              >
-                {isUpdating
-                  ? <ActivityIndicator color="white" size="small" />
-                  : <Text style={styles.saveTxt}>Mentés</Text>
-                }
-              </Pressable>
+                  <View style={styles.sheetActions}>
+                    <Pressable style={styles.cancelBtn} onPress={() => setWageModal(false)}>
+                      <Text style={styles.cancelTxt}>Mégse</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.saveBtn, isUpdating && { opacity: 0.65 }]}
+                      onPress={handleSaveWage}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating
+                        ? <ActivityIndicator color="white" size="small" />
+                        : <Text style={styles.saveTxt}>Mentés</Text>
+                      }
+                    </Pressable>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-          </Pressable>
-        </Pressable>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ════ Deviza modal ════ */}
@@ -384,7 +390,7 @@ const styles = StyleSheet.create({
 
   version: { fontSize: 11, color: '#D1D5DB', textAlign: 'center', marginTop: 28 },
 
-  // Modal shared
+  // Modal shared (bottom-sheet style for currency)
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: 'white',
@@ -398,7 +404,25 @@ const styles = StyleSheet.create({
   sheetTitle:  { fontSize: 18, fontWeight: '700', color: '#111827' },
   sheetHint:   { fontSize: 13, color: '#6B7280', lineHeight: 20, marginTop: -4 },
 
-  // Wage modal
+  // Wage modal — centered card so keyboard doesn't cover the input
+  overlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  wageCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    gap: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+
   wageRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 14 },
   wageInput: { flex: 1, fontSize: 22, fontWeight: '600', color: '#111827', paddingVertical: 14 },
   wageUnit:  { fontSize: 14, color: '#6B7280', fontWeight: '500' },
