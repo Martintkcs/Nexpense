@@ -1,121 +1,333 @@
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { useState, useMemo } from 'react';
+import {
+  View, Text, ScrollView, Pressable,
+  StyleSheet, ActivityIndicator, RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMonthlyExpenses } from '@/hooks/useExpenses';
+import { useCategories } from '@/hooks/useCategories';
+import type { Expense, Category } from '@/types/database';
 
-const PERIODS = ['Hét', 'Hónap', 'Év'];
-const CATEGORIES = [
-  { emoji: '🍽️', name: 'Étel & Ital', count: 18, amount: '48 340 Ft', pct: 38, color: '#F97316', barW: '100%' },
-  { emoji: '🚌', name: 'Transport', count: 5, amount: '29 800 Ft', pct: 23, color: '#3B82F6', barW: '60%' },
-  { emoji: '🛍️', name: 'Vásárlás', count: 7, amount: '22 990 Ft', pct: 18, color: '#EC4899', barW: '47%' },
-  { emoji: '🎬', name: 'Szórakozás', count: 4, amount: '14 920 Ft', pct: 12, color: '#8B5CF6', barW: '31%' },
-  { emoji: '⚡', name: 'Lakás & Rezsi', count: 2, amount: '11 400 Ft', pct: 9, color: '#6366F1', barW: '23%' },
-];
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+type Period = 'week' | 'month';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function getMondayOfCurrentWeek(): Date {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function buildDailyBars(expenses: Expense[], period: Period) {
+  const now = new Date();
+
+  if (period === 'week') {
+    const monday = getMondayOfCurrentWeek();
+    const labels = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V'];
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      const amount = expenses
+        .filter(e => e.expense_date === key)
+        .reduce((s, e) => s + e.amount, 0);
+      return { label: labels[i], amount, isToday: d.toDateString() === now.toDateString() };
+    });
+  }
+
+  // Month: one column per day
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const amount = expenses
+      .filter(e => e.expense_date === key)
+      .reduce((s, e) => s + e.amount, 0);
+    return {
+      label: day % 7 === 1 ? String(day) : '',
+      amount,
+      isToday: day === now.getDate(),
+    };
+  });
+}
+
+function buildCategoryBreakdown(expenses: Expense[], catMap: Map<string, Category>) {
+  const totals = new Map<string, number>();
+  for (const e of expenses) {
+    const k = e.category_id ?? '__none__';
+    totals.set(k, (totals.get(k) ?? 0) + e.amount);
+  }
+  const grand = expenses.reduce((s, e) => s + e.amount, 0);
+
+  return Array.from(totals.entries())
+    .map(([id, amount]) => {
+      const cat = catMap.get(id);
+      return {
+        id,
+        name:  cat?.name_hu ?? 'Egyéb',
+        icon:  cat?.icon    ?? '📦',
+        color: cat?.color   ?? '#9CA3AF',
+        amount,
+        pct:   grand > 0 ? Math.round((amount / grand) * 100) : 0,
+        count: expenses.filter(e => (e.category_id ?? '__none__') === id).length,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
+}
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function AnalyticsScreen() {
+  const now = new Date();
+  const [period, setPeriod] = useState<Period>('month');
+
+  const { data: monthlyExpenses = [], isLoading, refetch, isRefetching } =
+    useMonthlyExpenses(now.getFullYear(), now.getMonth() + 1);
+
+  const { categories } = useCategories();
+  const catMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+
+  // Filter to current week when 'week' period selected
+  const expenses = useMemo(() => {
+    if (period === 'month') return monthlyExpenses;
+    const monday = getMondayOfCurrentWeek();
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const from = monday.toISOString().split('T')[0];
+    const to   = sunday.toISOString().split('T')[0];
+    return monthlyExpenses.filter(e => e.expense_date >= from && e.expense_date <= to);
+  }, [monthlyExpenses, period]);
+
+  const total     = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
+  const bars      = useMemo(() => buildDailyBars(expenses, period), [expenses, period]);
+  const breakdown = useMemo(() => buildCategoryBreakdown(expenses, catMap), [expenses, catMap]);
+  const maxBar    = Math.max(...bars.map(b => b.amount), 1);
+
+  const monthLabel = now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' });
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Kimutatások</Text>
-        <Text style={styles.subtitle}>Február 2026</Text>
+        <Text style={styles.subtitle}>{monthLabel}</Text>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Period selector */}
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#4F46E5" />
+        }
+      >
+        {/* ── Period selector ── */}
         <View style={styles.periodSel}>
-          {PERIODS.map((p, i) => (
-            <Pressable key={p} style={[styles.periodOpt, i === 1 && styles.periodOptActive]}>
-              <Text style={[styles.periodText, i === 1 && styles.periodTextActive]}>{p}</Text>
+          {(['week', 'month'] as Period[]).map(p => (
+            <Pressable
+              key={p}
+              style={[styles.periodOpt, period === p && styles.periodOptActive]}
+              onPress={() => setPeriod(p)}
+            >
+              <Text style={[styles.periodTxt, period === p && styles.periodTxtActive]}>
+                {p === 'week' ? 'Ezen a héten' : 'Ebben a hónapban'}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Summary */}
-        <View style={[styles.card, { alignItems: 'center', paddingVertical: 20 }]}>
-          <Text style={styles.sumLabel}>ÖSSZES KIADÁS</Text>
-          <Text style={styles.sumTotal}>127 450 Ft</Text>
-          <View style={styles.changePill}>
-            <Text style={styles.changeText}>↓ 12 340 Ft kevesebb mint januárban</Text>
+        {isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color="#4F46E5" size="large" />
           </View>
-        </View>
+        ) : (
+          <>
+            {/* ── Summary card ── */}
+            <View style={[styles.card, styles.summaryCard]}>
+              <Text style={styles.sumLabel}>ÖSSZES KIADÁS</Text>
+              <Text style={styles.sumTotal}>
+                {total.toLocaleString('hu-HU')} Ft
+              </Text>
+              <Text style={styles.sumCount}>{expenses.length} tranzakció</Text>
+            </View>
 
-        {/* Bar chart placeholder */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Napi kiadások (február)</Text>
-          <View style={styles.bars}>
-            {[35, 55, 20, 80, 65, 45, 30, 50, 40, 70, 25, 60, 90, 15, 42].map((h, i) => (
-              <View key={i} style={styles.barCol}>
-                <View style={[styles.barFill, { height: `${h}%`, backgroundColor: i === 14 ? '#4F46E5' : '#E5E7EB' }]} />
-                {i === 14 && <View style={styles.barToday} />}
-              </View>
-            ))}
-          </View>
-          <Text style={styles.barLegend}>Ma ↑</Text>
-        </View>
-
-        {/* Category breakdown */}
-        <View style={styles.card}>
-          <Text style={[styles.cardTitle, { padding: 14, paddingBottom: 8 }]}>Kategória részletezés</Text>
-          {CATEGORIES.map((cat, i) => (
-            <View key={cat.name} style={[styles.catRow, i < CATEGORIES.length - 1 && styles.catRowBorder]}>
-              <View style={styles.catIco}><Text>{cat.emoji}</Text></View>
-              <View style={styles.catInfo}>
-                <Text style={styles.catName}>{cat.name}</Text>
-                <Text style={styles.catCount}>{cat.count} tranzakció</Text>
-                <View style={styles.catBarBg}>
-                  <View style={[styles.catBarFill, { width: cat.barW as any, backgroundColor: cat.color }]} />
-                </View>
-              </View>
-              <View>
-                <Text style={styles.catAmt}>{cat.amount}</Text>
-                <Text style={styles.catPct}>{cat.pct}%</Text>
+            {/* ── Bar chart ── */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>
+                {period === 'week' ? 'Napi kiadások – ez a hét' : 'Napi kiadások – ez a hónap'}
+              </Text>
+              <View style={styles.barsWrap}>
+                {bars.map((bar, i) => {
+                  const heightPct = bar.amount / maxBar;
+                  return (
+                    <View key={i} style={styles.barCol}>
+                      <View style={styles.barTrack}>
+                        <View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: bar.amount > 0 ? `${Math.max(heightPct * 100, 4)}%` : '0%',
+                              backgroundColor: bar.isToday ? '#4F46E5' : '#C7D2FE',
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.barLabel, bar.isToday && { color: '#4F46E5', fontWeight: '700' }]}>
+                        {bar.label}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
-          ))}
-        </View>
 
-        {/* AI insight */}
-        <View style={styles.aiCard}>
-          <Text style={styles.aiLabel}>📊 HAVI ÖSSZEFOGLALÓ</Text>
-          <Text style={styles.aiText}>
-            Péntekeken átlagosan <Text style={{ fontWeight: '700' }}>3x annyit</Text> költesz mint hétköznapokon. A legtöbb kiadás 12:00–14:00 között és 18:00–20:00 után jelenik meg.
-          </Text>
-        </View>
+            {/* ── Category breakdown ── */}
+            {breakdown.length === 0 ? (
+              <View style={[styles.card, styles.emptyCard]}>
+                <Text style={styles.emptyEmoji}>📊</Text>
+                <Text style={styles.emptyText}>
+                  {period === 'week'
+                    ? 'Ezen a héten még nincs kiadás.'
+                    : 'Ebben a hónapban még nincs kiadás.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.card}>
+                <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Kategória bontás</Text>
+                {breakdown.map((cat, i) => (
+                  <View
+                    key={cat.id}
+                    style={[styles.catRow, i < breakdown.length - 1 && styles.catRowBorder]}
+                  >
+                    <View style={[styles.catIcon, { backgroundColor: cat.color + '22' }]}>
+                      <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                    </View>
+                    <View style={styles.catInfo}>
+                      <View style={styles.catTopRow}>
+                        <Text style={styles.catName}>{cat.name}</Text>
+                        <Text style={styles.catAmt}>
+                          {cat.amount.toLocaleString('hu-HU')} Ft
+                        </Text>
+                      </View>
+                      <View style={styles.catMetaRow}>
+                        <Text style={styles.catCount}>{cat.count} tétel</Text>
+                        <Text style={styles.catPct}>{cat.pct}%</Text>
+                      </View>
+                      <View style={styles.catBarBg}>
+                        <View
+                          style={[
+                            styles.catBarFill,
+                            { width: `${cat.pct}%`, backgroundColor: cat.color },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* ── Top-category insight ── */}
+            {breakdown.length > 0 && (
+              <View style={styles.insightCard}>
+                <Text style={styles.insightLabel}>💡 LEGTÖBBET KÖLTÖTTÉL</Text>
+                <Text style={styles.insightText}>
+                  <Text style={{ fontWeight: '800' }}>{breakdown[0].name}</Text>
+                  {' '}kategóriában:{' '}
+                  <Text style={{ fontWeight: '800' }}>
+                    {breakdown[0].amount.toLocaleString('hu-HU')} Ft
+                  </Text>
+                  {' '}({breakdown[0].pct}% az összes kiadásodból)
+                </Text>
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F2F2F7' },
-  header: { backgroundColor: 'white', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  safe:     { flex: 1, backgroundColor: '#F2F2F7' },
+  header:   { backgroundColor: 'white', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  title:    { fontSize: 22, fontWeight: '700', color: '#111827' },
   subtitle: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  content: { padding: 16, gap: 10, paddingBottom: 20 },
-  periodSel: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 11, padding: 3 },
-  periodOpt: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 9 },
-  periodOptActive: { backgroundColor: 'white', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 },
-  periodText: { fontSize: 13, fontWeight: '500', color: '#6B7280' },
-  periodTextActive: { fontWeight: '700', color: '#111827' },
-  card: { backgroundColor: 'white', borderRadius: 14, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
-  sumLabel: { fontSize: 11, color: '#6B7280', letterSpacing: 0.7, fontWeight: '600' },
-  sumTotal: { fontSize: 30, fontWeight: '500', color: '#111827', marginTop: 4, fontVariant: ['tabular-nums'] },
-  changePill: { marginTop: 6, backgroundColor: '#D1FAE5', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 },
-  changeText: { fontSize: 12, fontWeight: '600', color: '#065F46' },
+  content:  { padding: 16, gap: 12, paddingBottom: 32 },
+  center:   { paddingTop: 60, alignItems: 'center' },
+
+  periodSel: {
+    flexDirection: 'row',
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 3,
+  },
+  periodOpt: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10 },
+  periodOptActive: {
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  periodTxt:       { fontSize: 13, fontWeight: '500', color: '#6B7280' },
+  periodTxtActive: { fontWeight: '700', color: '#111827' },
+
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 2,
+    padding: 14,
+  },
   cardTitle: { fontSize: 13, fontWeight: '600', color: '#111827', marginBottom: 12 },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', height: 72, gap: 4 },
-  barCol: { flex: 1, height: '100%', justifyContent: 'flex-end' },
-  barFill: { borderRadius: 3, minHeight: 4 },
-  barToday: {},
-  barLegend: { fontSize: 10, color: '#4F46E5', fontWeight: '700', textAlign: 'right', marginTop: 4 },
-  catRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 12 },
+
+  summaryCard: { alignItems: 'center', gap: 4 },
+  sumLabel:    { fontSize: 11, color: '#9CA3AF', letterSpacing: 0.7, fontWeight: '600' },
+  sumTotal:    { fontSize: 32, fontWeight: '700', color: '#111827', fontVariant: ['tabular-nums'] },
+  sumCount:    { fontSize: 13, color: '#6B7280' },
+
+  barsWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 80,
+    gap: 2,
+  },
+  barCol:    { flex: 1, alignItems: 'center', height: '100%' },
+  barTrack:  { flex: 1, width: '100%', justifyContent: 'flex-end' },
+  barFill:   { width: '100%', borderRadius: 3 },
+  barLabel:  { fontSize: 9, color: '#9CA3AF', marginTop: 4 },
+
+  catRow:       { flexDirection: 'row', gap: 12, paddingVertical: 12, alignItems: 'center' },
   catRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  catIco: { width: 38, height: 38, backgroundColor: '#F9FAFB', borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  catInfo: { flex: 1 },
-  catName: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  catCount: { fontSize: 11, color: '#6B7280', marginTop: 1 },
-  catBarBg: { height: 3, backgroundColor: '#F3F4F6', borderRadius: 2, marginTop: 5, overflow: 'hidden' },
-  catBarFill: { height: '100%', borderRadius: 2 },
-  catAmt: { fontSize: 14, fontWeight: '500', color: '#111827', textAlign: 'right', fontVariant: ['tabular-nums'] },
-  catPct: { fontSize: 11, color: '#6B7280', textAlign: 'right', marginTop: 1 },
-  aiCard: { backgroundColor: '#EEF2FF', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)' },
-  aiLabel: { fontSize: 10, fontWeight: '700', color: '#4F46E5', marginBottom: 6 },
-  aiText: { fontSize: 13, color: '#111827', lineHeight: 19 },
+  catIcon:      { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  catInfo:      { flex: 1, gap: 3 },
+  catTopRow:    { flexDirection: 'row', justifyContent: 'space-between' },
+  catName:      { fontSize: 14, fontWeight: '600', color: '#111827' },
+  catAmt:       { fontSize: 14, fontWeight: '600', color: '#111827', fontVariant: ['tabular-nums'] },
+  catMetaRow:   { flexDirection: 'row', justifyContent: 'space-between' },
+  catCount:     { fontSize: 11, color: '#9CA3AF' },
+  catPct:       { fontSize: 11, color: '#9CA3AF' },
+  catBarBg:     { height: 3, backgroundColor: '#F3F4F6', borderRadius: 2, overflow: 'hidden' },
+  catBarFill:   { height: '100%', borderRadius: 2 },
+
+  emptyCard:  { alignItems: 'center', paddingVertical: 28, gap: 8 },
+  emptyEmoji: { fontSize: 36 },
+  emptyText:  { fontSize: 14, color: '#9CA3AF', textAlign: 'center' },
+
+  insightCard:  { backgroundColor: '#EEF2FF', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)', gap: 4 },
+  insightLabel: { fontSize: 10, fontWeight: '700', color: '#4F46E5', letterSpacing: 0.5 },
+  insightText:  { fontSize: 13, color: '#111827', lineHeight: 20 },
 });
