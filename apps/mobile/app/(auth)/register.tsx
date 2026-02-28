@@ -21,23 +21,56 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        data: { display_name: name.trim() },
-      },
-    });
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: { display_name: name.trim() },
+        },
+      });
 
-    if (error) {
-      Alert.alert('Regisztrációs hiba', error.message);
-      return;
-    }
+      if (error) {
+        const msg = error.message.toLowerCase();
+        let magyarUzenet = error.message;
+        if (msg.includes('rate limit') || msg.includes('email rate')) {
+          magyarUzenet =
+            'Túl sok regisztrációs kísérlet rövid időn belül.\nKérjük várj néhány percet, majd próbáld újra!';
+        } else if (msg.includes('already registered') || msg.includes('already been registered')) {
+          magyarUzenet = 'Ez az email cím már regisztrálva van!';
+        } else if (msg.includes('invalid email')) {
+          magyarUzenet = 'Érvénytelen email cím formátum!';
+        } else if (msg.includes('weak password') || msg.includes('password')) {
+          magyarUzenet = 'A jelszó túl gyenge. Használj legalább 8 karaktert, számot és betűt!';
+        }
+        Alert.alert('Regisztrációs hiba', magyarUzenet);
+        return;
+      }
 
-    if (data.user) {
-      // A handle_new_user() trigger automatikusan létrehozza a profilt
-      router.replace('/(auth)/onboarding/1');
+      if (data.user) {
+        if (!data.session) {
+          // Email-megerősítés be van kapcsolva a Supabase-ben.
+          // Nincs azonnal session → a felhasználónak meg kell erősítenie az emailjét.
+          Alert.alert(
+            'Ellenőrizd az emailedet! 📧',
+            `Küldtünk egy megerősítő linket a(z) ${email.trim()} címre.\n\nKattints a linkre, majd lépj be!`,
+            [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }],
+          );
+          return;
+        }
+
+        // Session megvan → profil upsert (INSERT policy + trigger fallback)
+        await supabase
+          .from('profiles')
+          .upsert(
+            { id: data.user.id, display_name: name.trim() },
+            { onConflict: 'id' },
+          );
+
+        router.replace('/(auth)/onboarding/1');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 

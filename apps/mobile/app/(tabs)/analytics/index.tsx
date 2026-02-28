@@ -14,6 +14,15 @@ type Period = 'week' | 'month';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Lokális időzóna szerinti YYYY-MM-DD kulcs — toISOString() UTC-t adna vissza! */
+function toLocalDateKey(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 function getMondayOfCurrentWeek(): Date {
   const now = new Date();
   const day = now.getDay(); // 0 = Sun
@@ -32,7 +41,7 @@ function buildDailyBars(expenses: Expense[], period: Period) {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const key = d.toISOString().split('T')[0];
+      const key = toLocalDateKey(d); // ← volt: d.toISOString().split('T')[0]
       const amount = expenses
         .filter(e => e.expense_date === key)
         .reduce((s, e) => s + e.amount, 0);
@@ -100,8 +109,8 @@ export default function AnalyticsScreen() {
     const monday = getMondayOfCurrentWeek();
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const from = monday.toISOString().split('T')[0];
-    const to   = sunday.toISOString().split('T')[0];
+    const from = toLocalDateKey(monday);
+    const to   = toLocalDateKey(sunday);
     return monthlyExpenses.filter(e => e.expense_date >= from && e.expense_date <= to);
   }, [monthlyExpenses, period]);
 

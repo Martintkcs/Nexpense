@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function TabLayout() {
   return (
@@ -23,45 +23,50 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          tabBarLabel: 'Főoldal',
           title: 'Főoldal',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="home-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="expenses"
         options={{
+          tabBarLabel: 'Kiadások',
           title: 'Kiadások',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="receipt-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
+          tabBarLabel: 'Kimutatások',
           title: 'Kimutatások',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="chart-bar" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="impulse"
         options={{
+          tabBarLabel: 'Impulzus',
           title: 'Impulzus',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="flash-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="lightning-bolt-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
+          tabBarLabel: 'Beállítások',
           title: 'Beállítások',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="cog-outline" size={size} color={color} />
           ),
         }}
       />

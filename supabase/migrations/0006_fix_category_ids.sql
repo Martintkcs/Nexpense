@@ -1,9 +1,17 @@
 -- ============================================================
--- Nexpense – Rendszer kategóriák (seed adatok)
--- Rögzített UUID-k! Ugyanazokat kell használni a constants.ts CAT_IDS-ban.
--- user_id = NULL → mindenki látja
+-- Nexpense – Rendszer kategória ID-k javítása
+-- A régi seed auto-generált UUID-kat hozott létre.
+-- Ez a migráció törli és rögzített UUID-kkal újra beilleszti őket.
+-- Az expenses.category_id FK ON DELETE SET NULL → a régi kiadásoknál null lesz,
+-- de a jövőbeli kiadások már a helyes rögzített ID-kat kapják.
 -- ============================================================
 
+-- 1. Régi rendszer kategóriák törlése
+--    (expenses.category_id ON DELETE SET NULL miatt a kiadások megmaradnak,
+--     csak a category_id lesz null)
+DELETE FROM public.categories WHERE is_system = TRUE;
+
+-- 2. Újra beillesztés rögzített UUID-kkal (megegyeznek a constants.ts CAT_IDS-dal)
 INSERT INTO public.categories (id, name, name_hu, icon, color, is_system, sort_order) VALUES
   ('00000000-0000-0000-0000-000000000001', 'food',          'Étel & Ital',                '#F97316', '🍽️',  TRUE,  1),
   ('00000000-0000-0000-0000-000000000002', 'transport',     'Közlekedés',                 '#3B82F6', '🚌',  TRUE,  2),
@@ -18,11 +26,4 @@ INSERT INTO public.categories (id, name, name_hu, icon, color, is_system, sort_o
   ('00000000-0000-0000-0000-000000000011', 'personal',      'Személyes gondoskodás',      '#F472B6', '💆',  TRUE, 11),
   ('00000000-0000-0000-0000-000000000012', 'gifts',         'Ajándékok',                  '#FB7185', '🎁',  TRUE, 12),
   ('00000000-0000-0000-0000-000000000013', 'savings',       'Megtakarítás',               '#34D399', '🏦',  TRUE, 13),
-  ('00000000-0000-0000-0000-000000000014', 'other',         'Egyéb',                      '#9CA3AF', '📦',  TRUE, 14)
-ON CONFLICT (id) DO UPDATE SET
-  name         = EXCLUDED.name,
-  name_hu      = EXCLUDED.name_hu,
-  icon         = EXCLUDED.icon,
-  color        = EXCLUDED.color,
-  is_system    = EXCLUDED.is_system,
-  sort_order   = EXCLUDED.sort_order;
+  ('00000000-0000-0000-0000-000000000014', 'other',         'Egyéb',                      '#9CA3AF', '📦',  TRUE, 14);

@@ -27,8 +27,11 @@ export function useCategories() {
     created_at: new Date().toISOString(),
   }));
 
+  // Ha a DB üres tömböt ad vissza (seed nem futott), akkor is a fallback-et használjuk
+  const categories = query.data?.length ? query.data : fallbackCategories;
+
   return {
-    categories: query.data ?? fallbackCategories,
+    categories,
     isLoading: query.isLoading,
     error: query.error,
   };
