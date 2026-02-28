@@ -1,58 +1,104 @@
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
-
-const CATEGORIES = [
-  { emoji: '🍽️', name: 'Étel', bg: '#FFF7ED' },
-  { emoji: '🚌', name: 'Transport', bg: '#EFF6FF' },
-  { emoji: '🛍️', name: 'Vásárlás', bg: '#FDF2F8' },
-  { emoji: '🎬', name: 'Szórakozás', bg: '#F5F3FF' },
-  { emoji: '💊', name: 'Egészség', bg: '#F0FDF4' },
-  { emoji: '⚡', name: 'Rezsi', bg: '#FEF9C3' },
-  { emoji: '🎵', name: 'Előfizetés', bg: '#EFF6FF' },
-  { emoji: '📦', name: 'Egyéb', bg: '#F9FAFB' },
-];
+import { useAuth } from '@/providers/AuthProvider';
+import { useExpenses } from '@/hooks/useExpenses';
+import { useCategories } from '@/hooks/useCategories';
 
 export default function QuickAddModal() {
+  const { user } = useAuth();
+  const { addExpense, isAdding } = useExpenses();
+  const { categories } = useCategories();
+
   const [amount, setAmount] = useState('0');
-  const [selectedCat, setSelectedCat] = useState(0);
+  const [selectedCatIdx, setSelectedCatIdx] = useState(0);
+
+  // Az első 8 kategóriát mutatjuk a gyors hozzáadásban
+  const visibleCats = categories.slice(0, 8);
 
   function pressDigit(d: string) {
-    if (amount === '0') setAmount(d);
-    else setAmount(prev => prev + d);
+    if (d === '000') {
+      if (amount === '0') return;
+      setAmount(prev => prev + '000');
+    } else {
+      if (amount === '0') setAmount(d);
+      else setAmount(prev => prev + d);
+    }
   }
+
   function pressDelete() {
     if (amount.length > 1) setAmount(prev => prev.slice(0, -1));
     else setAmount('0');
   }
 
+  async function handleSave() {
+    const numAmount = parseInt(amount, 10);
+    if (!numAmount || numAmount <= 0) {
+      Alert.alert('Hibás összeg', 'Adj meg egy érvényes összeget!');
+      return;
+    }
+    if (!user) return;
+
+    const selectedCategory = visibleCats[selectedCatIdx];
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+      await addExpense({
+        user_id: user.id,
+        amount: numAmount,
+        currency: 'HUF',
+        category_id: selectedCategory?.id ?? null,
+        description: selectedCategory?.name_hu ?? selectedCategory?.name ?? null,
+        note: null,
+        expense_date: today,
+        expense_time: null,
+        location_name: null,
+        location_lat: null,
+        location_lng: null,
+        source: 'manual',
+        apple_pay_transaction_id: null,
+        is_deleted: false,
+        metadata: null,
+      });
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Hiba', err.message ?? 'Nem sikerült menteni a kiadást.');
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()}><Text style={styles.cancel}>Mégsem</Text></Pressable>
+        <Pressable onPress={() => router.back()}>
+          <Text style={styles.cancel}>Mégsem</Text>
+        </Pressable>
         <Text style={styles.title}>Kiadás hozzáadása</Text>
-        <Pressable><Text style={styles.save}>Mentés</Text></Pressable>
+        <View style={{ width: 60 }} />
       </View>
 
       {/* Amount */}
       <View style={styles.amountSection}>
-        <Text style={styles.amountDisplay}>{parseInt(amount, 10).toLocaleString('hu-HU')} Ft</Text>
+        <Text style={styles.amountDisplay}>
+          {parseInt(amount, 10).toLocaleString('hu-HU')} Ft
+        </Text>
         <Text style={styles.amountSub}>Magyar forint</Text>
       </View>
 
       {/* Category grid */}
       <View style={styles.catGrid}>
-        {CATEGORIES.map((cat, i) => (
+        {visibleCats.map((cat, i) => (
           <Pressable
-            key={cat.name}
-            style={[styles.catCell, selectedCat === i && styles.catCellActive]}
-            onPress={() => setSelectedCat(i)}
+            key={cat.id}
+            style={[styles.catCell, selectedCatIdx === i && styles.catCellActive]}
+            onPress={() => setSelectedCatIdx(i)}
           >
-            <View style={[styles.catIco, { backgroundColor: cat.bg }]}>
-              <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
+            <View style={[styles.catIco, { backgroundColor: cat.color + '22' }]}>
+              <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
             </View>
-            <Text style={styles.catName}>{cat.name}</Text>
+            <Text style={styles.catName} numberOfLines={1}>
+              {cat.name_hu ?? cat.name}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -70,8 +116,15 @@ export default function QuickAddModal() {
         ))}
       </View>
 
-      <Pressable style={styles.saveBtn} onPress={() => router.back()}>
-        <Text style={styles.saveBtnText}>Mentés</Text>
+      <Pressable
+        style={[styles.saveBtn, isAdding && styles.saveBtnDisabled]}
+        onPress={handleSave}
+        disabled={isAdding}
+      >
+        {isAdding
+          ? <ActivityIndicator color="white" />
+          : <Text style={styles.saveBtnText}>💾 Mentés</Text>
+        }
       </Pressable>
     </SafeAreaView>
   );
@@ -80,9 +133,8 @@ export default function QuickAddModal() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'white' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  cancel: { fontSize: 16, color: '#6B7280' },
+  cancel: { fontSize: 16, color: '#6B7280', width: 60 },
   title: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  save: { fontSize: 16, color: '#4F46E5', fontWeight: '700' },
   amountSection: { alignItems: 'center', paddingVertical: 24 },
   amountDisplay: { fontSize: 42, fontWeight: '500', color: '#111827', fontVariant: ['tabular-nums'] },
   amountSub: { fontSize: 13, color: '#6B7280', marginTop: 4 },
@@ -95,5 +147,6 @@ const styles = StyleSheet.create({
   numKey: { width: '30%', aspectRatio: 2.2, backgroundColor: '#F3F4F6', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   numKeyText: { fontSize: 20, fontWeight: '500', color: '#111827' },
   saveBtn: { margin: 16, backgroundColor: '#4F46E5', borderRadius: 14, padding: 15, alignItems: 'center' },
+  saveBtnDisabled: { backgroundColor: '#A5B4FC' },
   saveBtnText: { color: 'white', fontSize: 16, fontWeight: '700' },
 });
