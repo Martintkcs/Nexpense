@@ -1,167 +1,289 @@
 # Nexpense – Fejlesztési Állapot
 
-_Utolsó frissítés: 2026-02-28_
+_Utolsó frissítés: 2026-02-28 — Fázis 2 befejezve_
 
 ---
 
-## Mi készült el
+## Összefoglaló
 
-### Prototípus
-- **`prototype/index.html`** — Önálló interaktív HTML prototípus (Google Fonts kivételével nincs külső függőség)
-  - Mind az 5 fő képernyő: Dashboard, Kiadások, Analytics, Impulzus, Beállítások
-  - Gyors hozzáadás modal számbillentyűzettel
-  - AI Chat modal streaming szimulációval
-  - Dark mode kapcsoló, valós óra, bottom tab navigáció
+Nexpense egy iOS-first kiadáskövető alkalmazás impulzusvásárlás-megelőzéssel és AI funkciókkal.
+**Jelenlegi állapot:** Fázis 2 teljes — valódi Supabase backend, auth, CRUD. Fázis 3 következik.
 
-### Monorepo struktúra
-```
-E:/Nexpense/
-├── apps/mobile/          ← React Native Expo alkalmazás
-├── supabase/             ← Adatbázis migrációk + Edge Functions
-├── prototype/            ← HTML prototípus
-├── docs/                 ← Ez a fájl
-├── package.json          ← pnpm workspace gyökér
-└── pnpm-workspace.yaml
-```
+| Mutató | Érték |
+|--------|-------|
+| TypeScript hibák | ✅ 0 |
+| Expo SDK | 54 (Expo Go 54.0.2 kompatibilis) |
+| React / RN | 19.1.0 / 0.81.5 |
+| Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
+| Fázis | Fázis 2 befejezve |
 
-### Mobile app (`apps/mobile/`)
+---
 
-#### Navigáció (Expo Router, file-based)
-| Útvonal | Leírás |
-|---------|--------|
-| `app/(auth)/welcome.tsx` | Nyitóképernyő logóval és CTA gombokkal |
-| `app/(auth)/login.tsx` | Bejelentkezési form |
-| `app/(auth)/register.tsx` | Regisztrációs form |
-| `app/(auth)/onboarding/[step].tsx` | 10 lépéses onboarding (dinamikus) |
-| `app/(tabs)/index.tsx` | Dashboard – havi összesítő, AI insight, FAB |
-| `app/(tabs)/expenses/index.tsx` | Kiadáslista keresővel és szűrőkkel |
-| `app/(tabs)/analytics/index.tsx` | Kimutatások – időszak választó, kategória lista |
-| `app/(tabs)/impulse/index.tsx` | Impulzus tételek listája visszaszámlálóval |
-| `app/(tabs)/impulse/new.tsx` | Új impulzus tétel hozzáadása |
-| `app/(tabs)/settings/index.tsx` | Beállítások – profil, kapcsolók |
-| `app/modals/quick-add.tsx` | Gyors kiadás rögzítés számgombokkal |
-| `app/modals/apple-pay-detected.tsx` | Apple Pay észlelés popup |
-| `app/modals/ai-chat.tsx` | Teljes képernyős AI chat |
-| `app/_layout.tsx` | Root layout (GestureHandler, Query, Auth providerek) |
+## Mi működik most (Fázis 1 + 2)
 
-#### State management
-| Fájl | Leírás |
-|------|--------|
-| `src/stores/expenseStore.ts` | Zustand – kiadások, optimistic updates, offline queue |
-| `src/stores/settingsStore.ts` | Zustand – deviza, órabér, kapcsolók, dark mode |
+### Autentikáció
+| Képernyő | Működik | Leírás |
+|----------|---------|--------|
+| `welcome.tsx` | ✅ | Nyitóképernyő → Regisztráció vagy Bejelentkezés |
+| `login.tsx` | ✅ | `supabase.auth.signInWithPassword()`, hibakezelés, magyar hibaüzenetek |
+| `register.tsx` | ✅ | `supabase.auth.signUp()` + `display_name` metaadatban, DB trigger létrehoz profilt |
+| `onboarding/[step].tsx` | ✅ | 10 lépéses onboarding, kijelölés + Tovább gomb, utolsó lépésnél közvetlen belépés |
 
-#### Szolgáltatások és segédletek
-| Fájl | Leírás |
-|------|--------|
-| `src/services/supabase/client.ts` | Singleton Supabase kliens AsyncStorage session-nel |
-| `src/providers/AuthProvider.tsx` | Supabase auth session listener + `useAuth()` hook |
-| `src/providers/QueryProvider.tsx` | TanStack Query v5 (staleTime: 5 perc, retry: 2) |
-| `src/types/database.ts` | TypeScript típusok minden táblához és RPC függvényhez |
-| `src/lib/constants.ts` | Színek, 14 rendszerkategória, alapértelmezett deviza |
-| `src/lib/currency.ts` | `formatCurrency()`, `calcWorkHours()`, `shortenAmount()` |
+**Auth flow részletek:**
+- `AuthProvider.tsx` hallgatja az `onAuthStateChange` eseményeket
+- 400ms debounce a welcome-ra redirect előtt (race condition megelőzés regisztráció után)
+- `session && inAuthGroup && !inOnboarding` → `/(tabs)` redirect
+- `!session && !inAuthGroup` → `/(auth)/welcome` (400ms késleltetéssel)
+- `signOut()` elérhető a `useAuth()` hookból
 
-#### Konfiguráció
-| Fájl | Leírás |
-|------|--------|
-| `app.config.ts` | Expo konfig – scheme, bundle ID, pluginek, EAS |
-| `babel.config.js` | NativeWind v4 preset + reanimated plugin |
-| `tailwind.config.js` | Design tokenek: elsődleges szín, kategória színek |
-| `tsconfig.json` | Strict mód + `@/*` → `./src/*` path alias |
+---
 
-### Supabase (`supabase/`)
+### Főoldal (Dashboard)
+**Fájl:** `app/(tabs)/index.tsx`
 
-#### Adatbázis migrációk
+| Elem | Működik | Leírás |
+|------|---------|--------|
+| Üdvözlés | ✅ | Felhasználó keresztneve `user.user_metadata.display_name`-ből |
+| Havi összeg | ✅ | Valódi adat `useMonthlyExpenses()` alapján |
+| Tétel szám | ✅ | Havi tranzakciók száma |
+| Legutóbbi kiadások | ✅ | Utolsó 5 tétel, kategória ikonnal + színnel |
+| Pull-to-refresh | ✅ | Lehúzásra frissít |
+| Üres állapot | ✅ | Ha nincs kiadás, útmutatóval |
+| FAB gomb | ✅ | `+` → quick-add modal megnyitás |
+| AI összefoglaló | 🔜 | Placeholder — Fázis 3 |
+
+---
+
+### Kiadások lista
+**Fájl:** `app/(tabs)/expenses/index.tsx`
+
+| Elem | Működik | Leírás |
+|------|---------|--------|
+| Valódi lista | ✅ | `useExpenses()` → Supabase, is_deleted=false szűrés |
+| Napokra csoportosítás | ✅ | MA / TEGNAP / teljes dátum fejlécekkel |
+| Swipe-to-delete | ✅ | Balra húzás → piros 🗑 panel → optimista törlés + rollback |
+| Kereső | ✅ | Client-side, description + kategória névben |
+| Kategória szűrők | ✅ | Csak azon kategoriak chipként, amelyek tényleg szerepelnek az adatokban |
+| Pull-to-refresh | ✅ | |
+| Üres állapot | ✅ | Keresési és adatnélküli esetekre külön üzenet |
+| `+ Kiadás hozzáadása` | ✅ | Quick-add modalt nyit |
+
+**Swipe-delete technikai részlet:** Optimista update — az item azonnal eltűnik a cache-ből, ha a szerver hívás meghibásodik, automatikusan visszaáll.
+
+---
+
+### Quick-add modal
+**Fájl:** `app/modals/quick-add.tsx`
+
+| Elem | Működik |
+|------|---------|
+| Számpad (1–9, 000, 0, ⌫) | ✅ |
+| 8 kategória rács | ✅ |
+| Mentés Supabase-be | ✅ |
+| Betöltés indicator | ✅ |
+| Sikeres mentés után bezár | ✅ |
+| Cache invalidálás (dashboard + lista frissül) | ✅ |
+
+---
+
+### Kimutatások
+**Fájl:** `app/(tabs)/analytics/index.tsx`
+
+| Elem | Működik | Leírás |
+|------|---------|--------|
+| Időszak választó | ✅ | „Ezen a héten" / „Ebben a hónapban" |
+| Heti nézet | ✅ | H–V szűrés az aktuális hétre |
+| Havi nézet | ✅ | Teljes aktuális hónap |
+| Összesítő kártya | ✅ | Valódi összeg + tranzakció szám |
+| Oszlopdiagram | ✅ | Valódi napi összegek, ma indigóval kiemelve |
+| Kategória bontás | ✅ | Összeg, %, progress bar, kategória szín |
+| Insight kártya | ✅ | Legtöbbet költött kategória kiemelése |
+| Pull-to-refresh | ✅ | |
+| Üres állapot | ✅ | Heti / havi üres esetekre |
+
+---
+
+### Beállítások
+**Fájl:** `app/(tabs)/settings/index.tsx`
+
+| Elem | Működik | Leírás |
+|------|---------|--------|
+| Profil kártya | ✅ | Valódi név + email Supabase-ből, monogram avatar |
+| Órabér beállítás | ✅ | Középre pozicionált modal, `KeyboardAvoidingView`, menti `profiles.hourly_wage`-be |
+| Deviza választó | ✅ | HUF / EUR / USD, menti `profiles.currency`-be |
+| Push értesítések toggle | ✅ | Lokális állapot (AsyncStorage) |
+| Helymeghatározás toggle | ✅ | Lokális állapot |
+| Apple Pay észlelés toggle | ✅ | Lokális állapot |
+| Sötét mód toggle | ✅ | Lokális állapot (UI nem reagál rá még) |
+| Kijelentkezés | ✅ | Alert megerősítés → `supabase.auth.signOut()` |
+
+---
+
+### Impulzus modul
+**Fájl:** `app/(tabs)/impulse/index.tsx`, `impulse/new.tsx`
+
+| Elem | Működik | Leírás |
+|------|---------|--------|
+| UI váz | ✅ | Megtakarítás kártya, figyelmeztetés banner, tétel kártyák |
+| Munkaóra kalkulátor | ✅ | Megmutatja hány óra munka az adott ár |
+| Új tétel form | ✅ | Név, ár, bolt, URL, indok mezők |
+| Valódi Supabase mentés | 🔜 | Fázis 3 |
+| Döntés (megvettem/megspóroltam) | 🔜 | Fázis 3 |
+| 24h timer | 🔜 | Fázis 3 |
+
+---
+
+## Adatbázis struktúra (Supabase)
+
+### Táblák
+| Tábla | Leírás |
+|-------|--------|
+| `profiles` | Felhasználói profil (`display_name`, `hourly_wage`, `currency`, `spending_profile`) |
+| `expenses` | Kiadások (`amount`, `category_id`, `expense_date`, `description`, `is_deleted`) |
+| `categories` | 14 rendszer + egyedi kategóriák (`icon`, `color`, `name_hu`) |
+| `impulse_items` | Impulzus tételek (`price`, `decision`, `notify_at`, `hours_to_earn`) |
+| `tags` | Egyedi cimkék |
+| `expense_tags` | Kiadás ↔ cimke N:N tábla |
+| `ai_conversations` | AI beszélgetések |
+| `ai_messages` | AI üzenetek |
+| `onboarding_responses` | Onboarding válaszok (még nem használt) |
+| `location_rules` | Helyszín alapú kategória szabályok |
+| `push_tokens` | Push értesítési tokenek |
+
+### Migrációk (már futtatva)
 | Fájl | Tartalom |
 |------|----------|
-| `migrations/0001_initial_schema.sql` | Összes tábla, indexek, triggerek |
-| `migrations/0002_rls_policies.sql` | Row Level Security minden táblán |
-| `migrations/0003_rpc_functions.sql` | 4 PostgreSQL analitika függvény |
-| `migrations/0004_seed_categories.sql` | 14 rendszerkategória (HUF alapon) |
+| `0001_initial_schema.sql` | Táblák, indexek, triggerek |
+| `0002_rls_policies.sql` | Row Level Security minden táblán |
+| `0003_rpc_functions.sql` | `get_monthly_summary()` és 3 további RPC |
+| `0004_seed_categories.sql` | 14 rendszerkategória (HUF alapon) |
 
-**Táblák:** `profiles`, `categories`, `tags`, `expenses`, `expense_tags`,
-`impulse_items`, `ai_conversations`, `ai_messages`, `onboarding_responses`,
-`location_rules`, `push_tokens`
-
-#### Edge Functions (Deno)
+### Edge Functions (Deno — kész de még nem aktív)
 | Függvény | Leírás |
 |----------|--------|
-| `functions/ai-chat/` | Claude API proxy SSE streaminggel – 3 üzemmód: impulse_check, spending_analysis, general |
-| `functions/scheduled-impulse-check/` | Cron: 24h lejárt impulzus tételeknél Expo Push értesítés |
+| `functions/ai-chat/` | Claude API proxy SSE streaminggel |
+| `functions/scheduled-impulse-check/` | Cron: 24h lejárt impulzusoknál push értesítés |
 
 ---
 
 ## Tech Stack
 
-| Réteg | Technológia |
-|-------|-------------|
-| Mobilalkalmazás | React Native + Expo SDK 55 (Managed Workflow) |
-| Routing | Expo Router (file-based, groups) |
-| UI | NativeWind v4 (Tailwind) + lucide-react-native ikonok |
-| State | Zustand v5 + persist middleware (AsyncStorage) |
-| Server state | TanStack Query v5 |
-| Backend | Supabase (PostgreSQL, Auth, Edge Functions) |
-| AI | Anthropic Claude (Sonnet – elemzés, Haiku – impulzus) |
-| Chartek | Victory Native + react-native-svg |
-| Validáció | Zod |
-| Dátum | date-fns |
-| Animáció | react-native-reanimated v4 |
+| Réteg | Technológia | Verzió |
+|-------|-------------|--------|
+| Mobilalkalmazás | React Native + Expo Managed | SDK 54 |
+| Routing | Expo Router (file-based) | ~6.0.23 |
+| UI | StyleSheet + `@expo/vector-icons` Ionicons | — |
+| Animáció | react-native-reanimated | ~4.1.1 |
+| Gesztusok | react-native-gesture-handler | ~2.28.0 |
+| Stílus (CSS) | NativeWind v4 (Tailwind) | 4.1.23 |
+| Szerver state | TanStack Query v5 | 5.90.21 |
+| Lokális state | Zustand v5 + AsyncStorage persist | 5.0.11 |
+| Backend | Supabase (PostgreSQL + Auth + Edge) | 2.98.0 |
+| AI (tervezett) | Anthropic Claude (Sonnet / Haiku) | — |
+| TypeScript | — | ~5.9.2 |
+| React | — | 19.1.0 |
+| React Native | — | 0.81.5 |
 
 ---
 
-## Mi nincs meg még (következő lépések)
+## Architektúra
 
-### Azonnal szükséges az első futtatáshoz
-- [ ] `.env` fájl létrehozása a tényleges Supabase URL-lel és anon key-jel:
-  ```bash
-  cp apps/mobile/.env.example apps/mobile/.env
-  # → Töltsd ki a Supabase projekt adataival
-  ```
-- [ ] Supabase migrációk futtatása:
-  ```bash
-  supabase link --project-ref <PROJEKT_REF>
-  supabase db push
-  ```
+```
+apps/mobile/
+├── app/
+│   ├── _layout.tsx              ← GestureHandler + QueryProvider + AuthProvider
+│   ├── (auth)/
+│   │   ├── welcome.tsx
+│   │   ├── login.tsx            ← supabase.auth.signInWithPassword
+│   │   ├── register.tsx         ← supabase.auth.signUp
+│   │   └── onboarding/[step].tsx← 10 lépés, kijelölés + Tovább gomb
+│   ├── (tabs)/
+│   │   ├── _layout.tsx          ← Ionicons tab ikonok
+│   │   ├── index.tsx            ← Dashboard (valódi adatok)
+│   │   ├── expenses/index.tsx   ← Lista + swipe-delete
+│   │   ├── analytics/index.tsx  ← Grafikonok + kategória bontás
+│   │   ├── impulse/             ← UI kész, DB még nem
+│   │   └── settings/index.tsx   ← Profil + beállítások
+│   └── modals/
+│       ├── quick-add.tsx        ← Számpad + mentés
+│       ├── apple-pay-detected.tsx
+│       └── ai-chat.tsx
+├── src/
+│   ├── providers/
+│   │   ├── AuthProvider.tsx     ← Session + navigáció guard (400ms race fix)
+│   │   └── QueryProvider.tsx    ← TanStack Query konfig
+│   ├── hooks/
+│   │   ├── useExpenses.ts       ← CRUD + optimistic delete
+│   │   ├── useCategories.ts     ← Fetch + SYSTEM_CATEGORIES fallback
+│   │   └── useProfile.ts        ← Profil fetch + settingsStore sync
+│   ├── services/supabase/
+│   │   ├── client.ts            ← Singleton kliens, AsyncStorage session
+│   │   ├── expenses.ts          ← fetchExpenses, fetchMonthly, create, delete
+│   │   ├── categories.ts        ← fetchCategories (rendszer + egyedi)
+│   │   └── profiles.ts          ← fetchProfile, updateProfile
+│   ├── stores/
+│   │   ├── settingsStore.ts     ← Zustand (deviza, órabér, kapcsolók)
+│   │   └── expenseStore.ts      ← Zustand (legacy, TanStack Query váltotta fel)
+│   ├── types/
+│   │   └── database.ts          ← Supabase JS v2 kompatibilis típusok
+│   └── lib/
+│       ├── constants.ts         ← COLORS, SYSTEM_CATEGORIES, DEFAULT_CURRENCY
+│       └── currency.ts          ← formatCurrency, calcWorkHours
+```
 
-### Fázis 2 – MVP kiadáskezelés (következő sprint)
-- [ ] **Supabase auth bekötése** – bejelentkezés / regisztráció (`AuthProvider.tsx` jelenleg ki van kommentezve)
-- [ ] **Kiadás CRUD** – `expenseStore.syncPending()` valódi Supabase hívásokkal
-- [ ] **Kategória picker komponens** – `src/components/expenses/CategoryPicker.tsx`
-- [ ] **Kiadás részlet / szerkesztés** – `app/(tabs)/expenses/[id].tsx`
-- [ ] **Impulzus tétel mentés** – `impulse/new.tsx` jelenleg csak UI, nincs store hívás
+---
 
-### Fázis 3 – AI integráció
-- [ ] **Valódi AI chat** – `app/modals/ai-chat.tsx` jelenleg `setTimeout` mock, át kell kötni a Supabase Edge Function SSE streamre
-- [ ] **Dashboard AI insight kártya** – valódi `spending_analysis` Edge Function hívás
+## Ismert kisebb hiányosságok
 
-### Fázis 4 – Natív funkciók
-- [ ] **Push értesítések** – `expo-notifications` regisztráció, token mentése Supabase-be
-- [ ] **Helymeghatározás** – `expo-location` + kategória javaslat
-- [ ] **Apple Pay detektálás** – custom Expo config plugin
+| # | Hiányosság | Prioritás |
+|---|-----------|-----------|
+| 1 | Onboarding válaszok nem kerülnek DB-be (`profiles.spending_profile`) | Alacsony |
+| 2 | Impulzus képernyő adatok hardcodeolva (Fázis 3) | Közepes |
+| 3 | `settingsStore.onboardingCompleted` nincs bekötve (ismételt login skip) | Alacsony |
+| 4 | EAS Project ID placeholder az `app.config.ts`-ben (csak production buildhöz kell) | Alacsony |
+| 5 | Sötét mód toggle van, de a UI nem reagál rá | Alacsony |
 
-### Kisebb hiányosságok
-- [ ] Chart komponensek (`src/components/charts/`) – Victory Native alapon
-- [ ] Dark mode – `useColorScheme()` hook + NativeWind `dark:` osztályok bekötése
-- [ ] Hibakezelés és loading státuszok minden képernyőn
-- [ ] `tsconfig.json` path alias (`@/*`) nem működik Expo Routerrel alapból → `babel-plugin-module-resolver` szükséges
+---
+
+## Következő lépések (Fázis 3)
+
+### Impulzus modul (Fázis 3A)
+- [ ] `impulse_items` tábla bekötése az impulzus képernyőre
+- [ ] Valódi mentés: `impulse/new.tsx` → Supabase insert
+- [ ] Döntés kezelés: „Megvettem" / „Megspóroltam" gomb → `decision` mező frissítés
+- [ ] 24 órás visszaszámláló a tényleges `notify_at` alapján
+- [ ] Megtakarítás kártya valódi összeggel (skip-pelt tételek összege)
+
+### Push értesítések (Fázis 3B)
+- [ ] `expo-notifications` regisztráció
+- [ ] Push token mentése `push_tokens` táblába
+- [ ] Edge Function aktiválása: 24h lejárt impulzusoknál értesítés
+
+### AI chat (Fázis 4)
+- [ ] `ai-chat.tsx` bekötése a Supabase Edge Function `/ai-chat` SSE streamre
+- [ ] Impulzus check: `type: 'impulse_check'` + `context_id: impulse_item_id`
+- [ ] Dashboard AI insight: `type: 'spending_analysis'` → havi szokások elemzése
 
 ---
 
 ## Alkalmazás indítása
 
 ```bash
-# 1. Függőségek (ha még nem fut)
-cd apps/mobile && npm install
+# 1. Függőségek telepítése
+cd E:/Nexpense/apps/mobile
+npm install
 
-# 2. .env fájl
-cp .env.example .env   # és töltsd ki
+# 2. .env fájl (már megvan, nem kell újra)
+# EXPO_PUBLIC_SUPABASE_URL=https://...
+# EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
 # 3. Indítás
 npx expo start
 
-# Expo Go alkalmazással szkeneld be a QR kódot iPhone-on
+# Expo Go 54.0.2 → QR kód beolvasás
 ```
 
-**Fontos:** Mindig az `apps/mobile` mappából indítsd az Expo-t, nem a gyökérből!
+> **Fontos:** Mindig az `apps/mobile` mappából indítsd, nem a gyökérből!
 
 ---
 
@@ -169,6 +291,14 @@ npx expo start
 
 | Commit | Leírás |
 |--------|--------|
-| `d34299a` | first commit – projektváz, Supabase migrációk, prototípus |
-| `2221af1` | feat: teljes mobile app scaffold (összes képernyő, store-ok, config) |
-| `81a8f99` | fix: Expo indítási hiba javítása, asset útvonalak, impulse/new.tsx |
+| `8736901` | fix: 7 bejelentett bug (auth race, dátum timezone, modal keyboard, tab ikonok) |
+| `f874cc0` | feat(phase2): beállítások + kimutatások valódi Supabase adatokkal |
+| `06f48ff` | feat(expenses): valódi Supabase lista swipe-to-delete-tel |
+| `f31d0b6` | fix(onboarding): kijelölés állapot, Tovább gomb, közvetlen belépés |
+| `581e4bb` | feat: Fázis 2 – valódi Supabase auth és kiadás CRUD |
+| `6a885c4` | fix: Expo SDK 54-re állítás (Expo Go 54.0.2 kompatibilis) |
+| `4ca2c09` | fix: Windows Expo indítási hibák javítása |
+| `f22dc06` | docs: projekt státusz dokumentáció |
+| `81a8f99` | fix: Expo induláskori crash és config hibák |
+| `2221af1` | feat: teljes mobile app scaffold |
+| `d34299a` | first commit |
