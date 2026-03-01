@@ -1,0 +1,39 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Mobile (Expo Go)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/mobile/node_modules/expo/bin/cli",
+        "start",
+        "apps/mobile"
+      ],
+      "port": 8081
+    },
+    {
+      "name": "Mobile Web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/mobile/node_modules/expo/bin/cli",
+        "start",
+        "apps/mobile",
+        "--web"
+      ],
+      "port": 19006
+    },
+    {
+      "name": "Mobile (Clear Cache)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/mobile/node_modules/expo/bin/cli",
+        "start",
+        "apps/mobile",
+        "--clear",
+        "--port",
+        "8082"
+      ],
+      "port": 8082
+    }
+  ]
+}

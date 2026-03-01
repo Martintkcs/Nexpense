@@ -32,7 +32,25 @@ function getMondayOfCurrentWeek(): Date {
   return monday;
 }
 
-function buildDailyBars(expenses: Expense[], period: Period) {
+/** Egy nap kiadásait kategória szerint csoportosítja, arányos szegmensekbe. */
+function buildSegments(dayExpenses: Expense[], catMap: Map<string, Category>) {
+  const totals = new Map<string, { color: string; amount: number }>();
+  for (const e of dayExpenses) {
+    const cat = catMap.get(e.category_id ?? '');
+    const color = cat?.color ?? '#9CA3AF';
+    const k = e.category_id ?? '__none__';
+    const prev = totals.get(k);
+    if (prev) prev.amount += e.amount;
+    else totals.set(k, { color, amount: e.amount });
+  }
+  return Array.from(totals.values()).sort((a, b) => b.amount - a.amount);
+}
+
+function buildDailyBars(
+  expenses: Expense[],
+  catMap: Map<string, Category>,
+  period: Period,
+) {
   const now = new Date();
 
   if (period === 'week') {
@@ -41,11 +59,15 @@ function buildDailyBars(expenses: Expense[], period: Period) {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const key = toLocalDateKey(d); // ← volt: d.toISOString().split('T')[0]
-      const amount = expenses
-        .filter(e => e.expense_date === key)
-        .reduce((s, e) => s + e.amount, 0);
-      return { label: labels[i], amount, isToday: d.toDateString() === now.toDateString() };
+      const key = toLocalDateKey(d);
+      const dayExpenses = expenses.filter(e => e.expense_date === key);
+      const amount = dayExpenses.reduce((s, e) => s + e.amount, 0);
+      return {
+        label: labels[i],
+        amount,
+        isToday: d.toDateString() === now.toDateString(),
+        segments: buildSegments(dayExpenses, catMap),
+      };
     });
   }
 
@@ -56,13 +78,13 @@ function buildDailyBars(expenses: Expense[], period: Period) {
   return Array.from({ length: daysInMonth }, (_, i) => {
     const day = i + 1;
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const amount = expenses
-      .filter(e => e.expense_date === key)
-      .reduce((s, e) => s + e.amount, 0);
+    const dayExpenses = expenses.filter(e => e.expense_date === key);
+    const amount = dayExpenses.reduce((s, e) => s + e.amount, 0);
     return {
       label: day % 7 === 1 ? String(day) : '',
       amount,
       isToday: day === now.getDate(),
+      segments: buildSegments(dayExpenses, catMap),
     };
   });
 }
@@ -115,7 +137,7 @@ export default function AnalyticsScreen() {
   }, [monthlyExpenses, period]);
 
   const total     = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
-  const bars      = useMemo(() => buildDailyBars(expenses, period), [expenses, period]);
+  const bars      = useMemo(() => buildDailyBars(expenses, catMap, period), [expenses, catMap, period]);
   const breakdown = useMemo(() => buildCategoryBreakdown(expenses, catMap), [expenses, catMap]);
   const maxBar    = Math.max(...bars.map(b => b.amount), 1);
 
@@ -176,15 +198,31 @@ export default function AnalyticsScreen() {
                   return (
                     <View key={i} style={styles.barCol}>
                       <View style={styles.barTrack}>
-                        <View
-                          style={[
-                            styles.barFill,
-                            {
-                              height: bar.amount > 0 ? `${Math.max(heightPct * 100, 4)}%` : '0%',
-                              backgroundColor: bar.isToday ? '#4F46E5' : '#C7D2FE',
-                            },
-                          ]}
-                        />
+                        {bar.amount > 0 && (
+                          <View
+                            style={[
+                              styles.barStack,
+                              {
+                                height: `${Math.max(heightPct * 100, 4)}%`,
+                                opacity: bar.isToday ? 1 : 0.75,
+                              },
+                            ]}
+                          >
+                            {bar.segments.map((seg, si) => (
+                              <View
+                                key={si}
+                                style={{
+                                  flex: seg.amount,
+                                  backgroundColor: seg.color,
+                                  borderTopLeftRadius: si === 0 ? 3 : 0,
+                                  borderTopRightRadius: si === 0 ? 3 : 0,
+                                  borderBottomLeftRadius: si === bar.segments.length - 1 ? 3 : 0,
+                                  borderBottomRightRadius: si === bar.segments.length - 1 ? 3 : 0,
+                                }}
+                              />
+                            ))}
+                          </View>
+                        )}
                       </View>
                       <Text style={[styles.barLabel, bar.isToday && { color: '#4F46E5', fontWeight: '700' }]}>
                         {bar.label}
@@ -316,7 +354,7 @@ const styles = StyleSheet.create({
   },
   barCol:    { flex: 1, alignItems: 'center', height: '100%' },
   barTrack:  { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  barFill:   { width: '100%', borderRadius: 3 },
+  barStack:  { width: '100%', borderRadius: 3, overflow: 'hidden' },
   barLabel:  { fontSize: 9, color: '#9CA3AF', marginTop: 4 },
 
   catRow:       { flexDirection: 'row', gap: 12, paddingVertical: 12, alignItems: 'center' },
