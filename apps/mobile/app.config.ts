@@ -57,6 +57,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
+  // EAS Update – OTA frissítések
+  updates: {
+    url: 'https://u.expo.dev/REPLACE_WITH_YOUR_EAS_PROJECT_ID',
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
   extra: {
     eas: {
       projectId: 'REPLACE_WITH_YOUR_EAS_PROJECT_ID',
