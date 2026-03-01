@@ -63,7 +63,7 @@ export async function getNotificationPermissionStatus(): Promise<'granted' | 'de
 export async function scheduleImpulseNotification(
   itemId: string,
   itemName: string,
-  delaySeconds = 24 * 60 * 60,
+  delaySeconds = 10,
 ): Promise<string> {
   await ensureAndroidChannel();
 
@@ -76,9 +76,10 @@ export async function scheduleImpulseNotification(
       ...(Platform.OS === 'android' ? { channelId: 'impulse' } : {}),
     },
     trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds: delaySeconds,
       repeats: false,
-    } as Notifications.TimeIntervalTriggerInput,
+    },
   });
 
   return notificationId;

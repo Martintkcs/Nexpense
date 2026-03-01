@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, Switch,
   StyleSheet, Alert, TextInput, Modal, ActivityIndicator,
@@ -39,6 +39,16 @@ export default function SettingsScreen() {
     applePayDetectionEnabled, setApplePayDetectionEnabled,
     darkMode, setDarkMode,
   } = useSettingsStore();
+
+  // ── OS permission ↔ store szinkronizáció ─────────────────
+  // Ha az OS visszavonta az engedélyt (pl. rendszerbeállításokban), a toggle is frissül.
+  useEffect(() => {
+    getNotificationPermissionStatus().then(status => {
+      if (status !== 'granted' && notificationsEnabled) {
+        setNotificationsEnabled(false);
+      }
+    });
+  }, []);
 
   // ── Notification toggle handler ───────────────────────────
   const [notifLoading, setNotifLoading] = useState(false);

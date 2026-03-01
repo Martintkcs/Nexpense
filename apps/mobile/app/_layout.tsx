@@ -4,9 +4,32 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
-import { setupNotificationHandler } from '@/services/notifications';
+import { setupNotificationHandler, getExpoPushToken } from '@/services/notifications';
+import { savePushToken } from '@/services/supabase/pushTokens';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useAuth } from '@/providers/AuthProvider';
+
+/** Bejelentkezés után szinkronizálja a push tokent ha értesítések be vannak kapcsolva */
+function NotificationAutoRegister() {
+  const { user } = useAuth();
+  const { notificationsEnabled } = useSettingsStore();
+
+  useEffect(() => {
+    if (!user || !notificationsEnabled) return;
+    // Megpróbálja lekérni az Expo push tokent és menteni DB-be
+    // Expo Go-ban graceful skip (projectId nincs beállítva)
+    getExpoPushToken().then(token => {
+      if (token) {
+        savePushToken(user.id, token, Platform.OS).catch(() => {});
+      }
+    });
+  }, [user?.id]);
+
+  return null;
+}
 
 // Értesítés megjelenítési logika (foreground) – egyszer kell beállítani
 setupNotificationHandler();
@@ -37,6 +60,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryProvider>
         <AuthProvider>
+          <NotificationAutoRegister />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />

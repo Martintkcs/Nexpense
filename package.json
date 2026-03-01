@@ -13,6 +13,6 @@
     "supabase:functions:serve": "supabase functions serve"
   },
   "devDependencies": {
-    "supabase": "^2.0.0"
+    "supabase": "^2.76.15"
   }
 }
