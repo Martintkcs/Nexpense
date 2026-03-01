@@ -3,11 +3,19 @@ import {
   View, Text, ScrollView, Pressable, Switch,
   StyleSheet, Alert, TextInput, Modal, ActivityIndicator,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/hooks/useProfile';
 import { useSettingsStore } from '@/stores/settingsStore';
+import {
+  requestNotificationPermission,
+  getNotificationPermissionStatus,
+  cancelAllScheduledNotifications,
+  getExpoPushToken,
+} from '@/services/notifications';
+import { savePushToken, deactivateAllPushTokens } from '@/services/supabase/pushTokens';
 
 // ─── Currency options ──────────────────────────────────────────────────────────
 
@@ -31,6 +39,47 @@ export default function SettingsScreen() {
     applePayDetectionEnabled, setApplePayDetectionEnabled,
     darkMode, setDarkMode,
   } = useSettingsStore();
+
+  // ── Notification toggle handler ───────────────────────────
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  async function handleNotificationToggle(enabled: boolean) {
+    if (notifLoading) return;
+    setNotifLoading(true);
+    try {
+      if (enabled) {
+        // Engedélyt kérünk
+        const granted = await requestNotificationPermission();
+        if (!granted) {
+          // Korábban megtagadták → rendszerbeállításokba irányítjuk
+          Alert.alert(
+            'Értesítések letiltva',
+            'Az értesítések engedélyezéséhez menj a Beállítások → Nexpense menüpontba.',
+            [
+              { text: 'Mégse', style: 'cancel' },
+              { text: 'Beállítások megnyitása', onPress: () => Linking.openSettings() },
+            ],
+          );
+          return; // store-t nem frissítjük
+        }
+        setNotificationsEnabled(true);
+        // Expo push token mentése DB-be (EAS Build esetén működik, Expo Go-ban graceful skip)
+        const token = await getExpoPushToken();
+        if (token && user) {
+          await savePushToken(user.id, token, Platform.OS).catch(() => {});
+        }
+      } else {
+        // Kikapcsolás: lokális értesítések törlése + DB token deaktiválás
+        setNotificationsEnabled(false);
+        await cancelAllScheduledNotifications();
+        if (user) {
+          await deactivateAllPushTokens(user.id).catch(() => {});
+        }
+      }
+    } finally {
+      setNotifLoading(false);
+    }
+  }
 
   // ── Wage modal state ──────────────────────────────────────
   const [wageModal, setWageModal]   = useState(false);
@@ -151,7 +200,8 @@ export default function SettingsScreen() {
             emoji="🔔"
             name="Push értesítések"
             value={notificationsEnabled}
-            onToggle={setNotificationsEnabled}
+            onToggle={handleNotificationToggle}
+            loading={notifLoading}
           />
           <SettingsToggle
             emoji="📍"
@@ -326,25 +376,31 @@ function SettingsRow({
 }
 
 function SettingsToggle({
-  emoji, name, value, onToggle, last = false,
+  emoji, name, value, onToggle, last = false, loading = false,
 }: {
   emoji: string;
   name: string;
   value: boolean;
   onToggle: (v: boolean) => void;
   last?: boolean;
+  loading?: boolean;
 }) {
   return (
     <View style={[styles.row, !last && styles.rowBorder]}>
       <View style={styles.rowIcon}><Text>{emoji}</Text></View>
       <Text style={[styles.rowName, { flex: 1 }]}>{name}</Text>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: '#E5E7EB', true: '#4F46E5' }}
-        thumbColor="white"
-        ios_backgroundColor="#E5E7EB"
-      />
+      {loading
+        ? <ActivityIndicator size="small" color="#4F46E5" />
+        : (
+          <Switch
+            value={value}
+            onValueChange={onToggle}
+            trackColor={{ false: '#E5E7EB', true: '#4F46E5' }}
+            thumbColor="white"
+            ios_backgroundColor="#E5E7EB"
+          />
+        )
+      }
     </View>
   );
 }

@@ -154,6 +154,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token: string;
+          platform: string;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token: string;
+          platform: string;
+          is_active?: boolean;
+        };
+        Update: {
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
       impulse_items: {
         Row: {
           id: string;
@@ -233,3 +254,4 @@ export type Expense = Tables<'expenses'>;
 export type Category = Tables<'categories'>;
 export type Profile = Tables<'profiles'>;
 export type ImpulseItem = Tables<'impulse_items'>;
+export type PushToken = Tables<'push_tokens'>;

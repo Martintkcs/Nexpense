@@ -9,6 +9,10 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { useAuth } from '@/providers/AuthProvider';
 import { useImpulseItems } from '@/hooks/useImpulse';
 import { calcWorkHours } from '@/lib/currency';
+import {
+  requestNotificationPermission,
+  scheduleImpulseNotification,
+} from '@/services/notifications';
 
 export default function NewImpulseScreen() {
   const { user } = useAuth();
@@ -41,7 +45,7 @@ export default function NewImpulseScreen() {
     const notifyAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24 óra
 
     try {
-      await addItem({
+      const saved = await addItem({
         user_id: user.id,
         name: name.trim(),
         price: numericPrice,
@@ -53,6 +57,14 @@ export default function NewImpulseScreen() {
         notify_at: notifyAt.toISOString(),
         decision: 'pending',
       });
+
+      // Lokális értesítés ütemezése 24 órára
+      // (Expo Go-ban is működik, EAS Build nem szükséges)
+      const granted = await requestNotificationPermission();
+      if (granted && saved?.id) {
+        await scheduleImpulseNotification(saved.id, name.trim());
+      }
+
       router.back();
     } catch (err: any) {
       Alert.alert('Hiba', err.message ?? 'Nem sikerült menteni.');
