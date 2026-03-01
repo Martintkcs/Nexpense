@@ -1,65 +1,173 @@
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  View, Text, ScrollView, Pressable, StyleSheet,
+  ActivityIndicator, RefreshControl, Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useImpulseItems } from '@/hooks/useImpulse';
+import { useSettingsStore } from '@/stores/settingsStore';
+import type { ImpulseItem } from '@/types/database';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Visszaszámláló szöveg a notify_at alapján */
+function getTimeLeft(notifyAt: string): { text: string; expired: boolean } {
+  const diff = new Date(notifyAt).getTime() - Date.now();
+  if (diff <= 0) return { text: '24 óra letelt – döntés szükséges!', expired: true };
+
+  const totalMinutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return { text: `Még ${hours} óra ${minutes} perc a gondolkodási idő`, expired: false };
+  }
+  return { text: `Még ${minutes} perc a gondolkodási idő`, expired: false };
+}
+
+/** Munkaóra szöveg a hours_to_earn alapján */
+function workHoursLabel(hours: number | null): string {
+  if (!hours || hours <= 0) return '—';
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h > 0) return `${h} óra ${m} perc`;
+  return `${m} perc`;
+}
+
+// ─── Ticker hook ───────────────────────────────────────────────────────────────
+
+/** Percenként frissülő tick, hogy a timer újrarenderelődjön */
+function useMinuteTicker() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+}
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ImpulseScreen() {
+  useMinuteTicker();
+  const { hourlyWage } = useSettingsStore();
+  const {
+    pending, history, savedAmount,
+    isLoading, isRefetching, refetch,
+    makeDecision, isDeciding,
+  } = useImpulseItems();
+
+  function confirmDecision(item: ImpulseItem, decision: 'purchased' | 'skipped') {
+    const isPurchase = decision === 'purchased';
+    Alert.alert(
+      isPurchase ? '💳 Megvetted?' : '🎉 Megspórolod?',
+      isPurchase
+        ? `Biztosan megvetted a(z) "${item.name}" terméket?`
+        : `Biztosan lemondasz a(z) "${item.name}" termékről? Ez ${item.price.toLocaleString('hu-HU')} Ft megtakarítás!`,
+      [
+        { text: 'Mégsem', style: 'cancel' },
+        {
+          text: isPurchase ? 'Igen, megvettem' : 'Igen, megspórolom',
+          style: isPurchase ? 'destructive' : 'default',
+          onPress: () => makeDecision({ id: item.id, decision }),
+        },
+      ],
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Impulzus Check ⚡</Text>
         <Text style={styles.subtitle}>Gondold meg kétszer mielőtt vásárolsz</Text>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
-        {/* Megtakarítás */}
-        <View style={styles.savedCard}>
-          <Text style={styles.savedEmoji}>🎉</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.savedLabel}>EDDIG MEGSPÓROLTAD</Text>
-            <Text style={styles.savedAmt}>+ 42 990 Ft</Text>
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color="#4F46E5" size="large" />
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#4F46E5" />
+          }
+        >
+          {/* ── Megtakarítás kártya ── */}
+          <View style={styles.savedCard}>
+            <Text style={styles.savedEmoji}>🎉</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.savedLabel}>EDDIG MEGSPÓROLTAD</Text>
+              <Text style={styles.savedAmt}>
+                {savedAmount > 0
+                  ? `+ ${savedAmount.toLocaleString('hu-HU')} Ft`
+                  : 'Még nincs megtakarítás'}
+              </Text>
+            </View>
+            {history.filter(i => i.decision === 'skipped').length > 0 && (
+              <Text style={styles.savedCount}>
+                {history.filter(i => i.decision === 'skipped').length} visszautasított{'\n'}impulzusvásárlás
+              </Text>
+            )}
           </View>
-          <Text style={styles.savedCount}>1 visszautasított{'\n'}impulzusvásárlás</Text>
-        </View>
 
-        {/* Warning banner */}
-        <View style={styles.warnBanner}>
-          <Text style={styles.warnEmoji}>⏳</Text>
-          <View>
-            <Text style={styles.warnTitle}>2 tétel vár döntésre</Text>
-            <Text style={styles.warnSub}>Az órabéred: 13 300 Ft/h – megéri?</Text>
-          </View>
-        </View>
+          {/* ── Figyelmeztető banner (ha van pending tétel) ── */}
+          {pending.length > 0 && (
+            <View style={styles.warnBanner}>
+              <Text style={styles.warnEmoji}>⏳</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warnTitle}>
+                  {pending.length} tétel vár döntésre
+                </Text>
+                <Text style={styles.warnSub}>
+                  {hourlyWage
+                    ? `Az órabéred: ${hourlyWage.toLocaleString('hu-HU')} Ft/h – megéri?`
+                    : 'Add meg az órabéredet a Beállításokban!'}
+                </Text>
+              </View>
+            </View>
+          )}
 
-        {/* Item 1 */}
-        <ImpulseCard
-          emoji="👟"
-          name="Nike Air Max 270"
-          store="Nike.com · Sportcipő"
-          price="42 990 Ft"
-          hours="3 óra 14 perc"
-          timer="Még 14 óra 23 perc a gondolkodási idő"
-          timerWarning={false}
-        />
+          {/* ── Üres állapot ── */}
+          {pending.length === 0 && history.length === 0 && (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyEmoji}>⚡</Text>
+              <Text style={styles.emptyTitle}>Nincs impulzus tétel</Text>
+              <Text style={styles.emptyText}>
+                Ha valami megtetszik, add hozzá! 24 óra után eldöntheted, hogy valóban szükséged van-e rá.
+              </Text>
+            </View>
+          )}
 
-        {/* Item 2 */}
-        <ImpulseCard
-          emoji="🎧"
-          name="Sony WH-1000XM5"
-          store="MediaMarkt · Headset"
-          price="129 000 Ft"
-          hours="9 óra 42 perc"
-          timer="24 óra letelt – döntés szükséges!"
-          timerWarning={true}
-        />
+          {/* ── Függőben lévő tételek ── */}
+          {pending.map(item => (
+            <ImpulseCard
+              key={item.id}
+              item={item}
+              onSkip={() => confirmDecision(item, 'skipped')}
+              onBuy={() => confirmDecision(item, 'purchased')}
+              isDeciding={isDeciding}
+            />
+          ))}
 
-        {/* History */}
-        <Text style={styles.histLabel}>KORÁBBI DÖNTÉSEK</Text>
-        <View style={styles.card}>
-          <HistItem emoji="📱" name={'iPad Pro 11" M4'} price="739 990 Ft · febr. 10." skipped />
-          <HistItem emoji="☕" name="DeLonghi Dedica kávégép" price="89 990 Ft · jan. 28." skipped={false} />
-          <HistItem emoji="🧥" name="Tommy Hilfiger kabát" price="62 000 Ft · jan. 14." skipped last />
-        </View>
-      </ScrollView>
+          {/* ── Korábbi döntések ── */}
+          {history.length > 0 && (
+            <>
+              <Text style={styles.histLabel}>KORÁBBI DÖNTÉSEK</Text>
+              <View style={styles.card}>
+                {history.map((item, i) => (
+                  <HistItem
+                    key={item.id}
+                    item={item}
+                    last={i === history.length - 1}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      )}
 
       <View style={styles.addBtnWrap}>
         <Pressable style={styles.addBtn} onPress={() => router.push('/(tabs)/impulse/new' as any)}>
@@ -70,96 +178,164 @@ export default function ImpulseScreen() {
   );
 }
 
-function ImpulseCard({ emoji, name, store, price, hours, timer, timerWarning }: any) {
+// ─── ImpulseCard komponens ─────────────────────────────────────────────────────
+
+function ImpulseCard({
+  item, onSkip, onBuy, isDeciding,
+}: {
+  item: ImpulseItem;
+  onSkip: () => void;
+  onBuy: () => void;
+  isDeciding: boolean;
+}) {
+  const { text: timerText, expired } = getTimeLeft(item.notify_at);
+
   return (
     <View style={styles.card}>
       <View style={styles.itemTop}>
-        <View style={styles.itemEmoji}><Text style={{ fontSize: 22 }}>{emoji}</Text></View>
+        <View style={styles.itemEmoji}>
+          <Text style={{ fontSize: 22 }}>🛍️</Text>
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.itemName}>{name}</Text>
-          <Text style={styles.itemStore}>{store}</Text>
+          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.itemStore} numberOfLines={1}>
+            {item.store_name ?? 'Ismeretlen bolt'}
+          </Text>
         </View>
-        <Text style={styles.itemPrice}>{price}</Text>
+        <Text style={styles.itemPrice}>
+          {item.price.toLocaleString('hu-HU')} Ft
+        </Text>
       </View>
+
       <View style={styles.itemBody}>
-        <View style={styles.workRow}>
-          <Text style={styles.workLbl}>⏱️ Ezért ennyit dolgozol</Text>
-          <Text style={styles.workVal}>{hours}</Text>
+        {item.hours_to_earn != null && item.hours_to_earn > 0 && (
+          <View style={styles.workRow}>
+            <Text style={styles.workLbl}>⏱️ Ezért ennyit dolgozol</Text>
+            <Text style={styles.workVal}>{workHoursLabel(item.hours_to_earn)}</Text>
+          </View>
+        )}
+
+        <View style={[styles.timerRow, expired && styles.timerRowWarn]}>
+          <Text>{expired ? '🔔' : '⏰'}</Text>
+          <Text style={[styles.timerTxt, expired && styles.timerTxtWarn]}>{timerText}</Text>
         </View>
-        <View style={[styles.timerRow, timerWarning && styles.timerRowWarn]}>
-          <Text>{timerWarning ? '🔔' : '⏰'}</Text>
-          <Text style={[styles.timerTxt, timerWarning && styles.timerTxtWarn]}>{timer}</Text>
-        </View>
+
+        {item.reason ? (
+          <View style={styles.reasonRow}>
+            <Text style={styles.reasonTxt}>💭 {item.reason}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.actions}>
-          <Pressable style={styles.skipBtn}><Text style={styles.skipTxt}>✕ Mégse kell</Text></Pressable>
-          <Pressable style={styles.aiBtn}><Text style={styles.aiBtnTxt}>🤖 AI Tanács</Text></Pressable>
+          <Pressable
+            style={[styles.skipBtn, isDeciding && { opacity: 0.5 }]}
+            onPress={onSkip}
+            disabled={isDeciding}
+          >
+            <Text style={styles.skipTxt}>✕ Mégse kell</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.buyBtn, isDeciding && { opacity: 0.5 }]}
+            onPress={onBuy}
+            disabled={isDeciding}
+          >
+            <Text style={styles.buyBtnTxt}>✓ Megvettem</Text>
+          </Pressable>
         </View>
       </View>
     </View>
   );
 }
 
-function HistItem({ emoji, name, price, skipped, last = false }: any) {
+// ─── HistItem komponens ────────────────────────────────────────────────────────
+
+function HistItem({ item, last }: { item: ImpulseItem; last: boolean }) {
+  const skipped = item.decision === 'skipped';
+  const dateStr = item.decided_at
+    ? new Date(item.decided_at).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
+    : '';
+
   return (
     <View style={[styles.histItem, !last && styles.histItemBorder]}>
-      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      <Text style={{ fontSize: 22 }}>🛍️</Text>
       <View style={{ flex: 1 }}>
-        <Text style={styles.histName}>{name}</Text>
-        <Text style={styles.histPrice}>{price}</Text>
+        <Text style={styles.histName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.histPrice}>
+          {item.price.toLocaleString('hu-HU')} Ft{dateStr ? ` · ${dateStr}` : ''}
+        </Text>
       </View>
       <View style={[styles.badge, skipped ? styles.badgeGreen : styles.badgeRed]}>
         <Text style={[styles.badgeTxt, { color: skipped ? '#065F46' : '#991B1B' }]}>
-          {skipped ? '✓ Megspóroltam' : 'Megvettem'}
+          {skipped ? '✓ Megspóroltam' : '💳 Megvettem'}
         </Text>
       </View>
     </View>
   );
 }
 
+// ─── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F2F2F7' },
-  header: { backgroundColor: 'white', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  title: { fontSize: 22, fontWeight: '700', color: '#111827' },
+  safe:     { flex: 1, backgroundColor: '#F2F2F7' },
+  header:   { backgroundColor: 'white', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  title:    { fontSize: 22, fontWeight: '700', color: '#111827' },
   subtitle: { fontSize: 13, color: '#6B7280', marginTop: 2 },
-  content: { padding: 16, gap: 10, paddingBottom: 90 },
-  savedCard: { backgroundColor: 'white', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  center:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  content:  { padding: 16, gap: 10, paddingBottom: 90 },
+
+  savedCard:  { backgroundColor: 'white', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
   savedEmoji: { fontSize: 26 },
   savedLabel: { fontSize: 10, fontWeight: '700', color: '#6B7280', letterSpacing: 0.5 },
-  savedAmt: { fontSize: 20, fontWeight: '500', color: '#10B981', marginTop: 2, fontVariant: ['tabular-nums'] },
+  savedAmt:   { fontSize: 20, fontWeight: '500', color: '#10B981', marginTop: 2, fontVariant: ['tabular-nums'] },
   savedCount: { fontSize: 11, color: '#6B7280', textAlign: 'right' },
+
   warnBanner: { backgroundColor: '#F59E0B', borderRadius: 14, padding: 14, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  warnEmoji: { fontSize: 28 },
-  warnTitle: { fontSize: 14, fontWeight: '700', color: 'white' },
-  warnSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-  card: { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
-  itemTop: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
-  itemEmoji: { width: 46, height: 46, backgroundColor: '#F3F4F6', borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  itemName: { fontSize: 15, fontWeight: '700', color: '#111827' },
-  itemStore: { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  itemPrice: { fontSize: 16, fontWeight: '500', color: '#111827', fontVariant: ['tabular-nums'] },
-  itemBody: { padding: 14, paddingTop: 0, gap: 8 },
-  workRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 9, padding: 10 },
-  workLbl: { flex: 1, fontSize: 12, color: '#6B7280' },
-  workVal: { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
-  timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3C7', borderRadius: 9, padding: 9 },
-  timerRowWarn: { backgroundColor: '#FEE2E2' },
-  timerTxt: { fontSize: 13, fontWeight: '600', color: '#92400E', flex: 1 },
-  timerTxtWarn: { color: '#991B1B' },
-  actions: { flexDirection: 'row', gap: 7 },
-  skipBtn: { flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 10, alignItems: 'center' },
-  skipTxt: { fontSize: 13, fontWeight: '600', color: '#991B1B' },
-  aiBtn: { flex: 1, backgroundColor: '#4F46E5', borderRadius: 10, padding: 10, alignItems: 'center' },
-  aiBtnTxt: { fontSize: 13, fontWeight: '600', color: 'white' },
-  histLabel: { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 0.7 },
-  histItem: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
+  warnEmoji:  { fontSize: 28 },
+  warnTitle:  { fontSize: 14, fontWeight: '700', color: 'white' },
+  warnSub:    { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+
+  emptyCard:  { backgroundColor: 'white', borderRadius: 14, padding: 28, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
+  emptyEmoji: { fontSize: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  emptyText:  { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 19 },
+
+  card:       { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
+  itemTop:    { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
+  itemEmoji:  { width: 46, height: 46, backgroundColor: '#F3F4F6', borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  itemName:   { fontSize: 15, fontWeight: '700', color: '#111827' },
+  itemStore:  { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  itemPrice:  { fontSize: 16, fontWeight: '500', color: '#111827', fontVariant: ['tabular-nums'] },
+  itemBody:   { padding: 14, paddingTop: 0, gap: 8 },
+
+  workRow:     { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 9, padding: 10 },
+  workLbl:     { flex: 1, fontSize: 12, color: '#6B7280' },
+  workVal:     { fontSize: 13, fontWeight: '700', color: '#F59E0B' },
+
+  timerRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3C7', borderRadius: 9, padding: 9 },
+  timerRowWarn:{ backgroundColor: '#FEE2E2' },
+  timerTxt:    { fontSize: 13, fontWeight: '600', color: '#92400E', flex: 1 },
+  timerTxtWarn:{ color: '#991B1B' },
+
+  reasonRow:  { backgroundColor: '#F9FAFB', borderRadius: 9, padding: 9 },
+  reasonTxt:  { fontSize: 12, color: '#6B7280', fontStyle: 'italic', lineHeight: 17 },
+
+  actions:    { flexDirection: 'row', gap: 7 },
+  skipBtn:    { flex: 1, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 10, alignItems: 'center' },
+  skipTxt:    { fontSize: 13, fontWeight: '600', color: '#991B1B' },
+  buyBtn:     { flex: 1, backgroundColor: '#D1FAE5', borderRadius: 10, padding: 10, alignItems: 'center' },
+  buyBtnTxt:  { fontSize: 13, fontWeight: '600', color: '#065F46' },
+
+  histLabel:      { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 0.7 },
+  histItem:       { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
   histItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  histName: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
-  histPrice: { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  badgeGreen: { backgroundColor: '#D1FAE5' },
-  badgeRed: { backgroundColor: '#FEE2E2' },
-  badgeTxt: { fontSize: 11, fontWeight: '700' },
+  histName:       { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+  histPrice:      { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
+  badge:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  badgeGreen:     { backgroundColor: '#D1FAE5' },
+  badgeRed:       { backgroundColor: '#FEE2E2' },
+  badgeTxt:       { fontSize: 11, fontWeight: '700' },
+
   addBtnWrap: { padding: 16, paddingBottom: 20, backgroundColor: '#F2F2F7' },
-  addBtn: { backgroundColor: '#4F46E5', borderRadius: 14, padding: 15, alignItems: 'center' },
+  addBtn:     { backgroundColor: '#4F46E5', borderRadius: 14, padding: 15, alignItems: 'center' },
   addBtnText: { color: 'white', fontSize: 15, fontWeight: '700' },
 });

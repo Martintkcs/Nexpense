@@ -1,11 +1,20 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View, Text, TextInput, Pressable, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { useAuth } from '@/providers/AuthProvider';
+import { useImpulseItems } from '@/hooks/useImpulse';
+import { calcWorkHours } from '@/lib/currency';
 
 export default function NewImpulseScreen() {
+  const { user } = useAuth();
   const { hourlyWage } = useSettingsStore();
+  const { addItem, isAdding } = useImpulseItems();
+
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [store, setStore] = useState('');
@@ -14,18 +23,41 @@ export default function NewImpulseScreen() {
 
   const numericPrice = parseFloat(price.replace(/\s/g, '').replace(',', '.')) || 0;
   const wage = hourlyWage ?? 0;
-  const hoursRaw = wage > 0 ? numericPrice / wage : 0;
-  const hours = Math.floor(hoursRaw);
-  const minutes = Math.round((hoursRaw - hours) * 60);
 
   const workLabel =
     wage === 0
       ? 'Órabéred még nincs megadva (Beállítások)'
-      : hoursRaw === 0
+      : numericPrice === 0
       ? 'Add meg az árat'
-      : `${hours > 0 ? `${hours} óra ` : ''}${minutes} perc munkával keresheted meg`;
+      : `${calcWorkHours(numericPrice, wage).display} munkával keresheted meg`;
 
+  const hoursToEarn = wage > 0 && numericPrice > 0 ? numericPrice / wage : null;
   const canSave = name.trim().length > 0 && numericPrice > 0;
+
+  async function handleSave() {
+    if (!canSave || !user) return;
+
+    const now = new Date();
+    const notifyAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24 óra
+
+    try {
+      await addItem({
+        user_id: user.id,
+        name: name.trim(),
+        price: numericPrice,
+        currency: 'HUF',
+        store_name: store.trim() || null,
+        url: url.trim() || null,
+        reason: reason.trim() || null,
+        hours_to_earn: hoursToEarn,
+        notify_at: notifyAt.toISOString(),
+        decision: 'pending',
+      });
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Hiba', err.message ?? 'Nem sikerült menteni.');
+    }
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -118,13 +150,14 @@ export default function NewImpulseScreen() {
         {/* Save button */}
         <View style={styles.footer}>
           <Pressable
-            style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
-            onPress={() => {
-              if (canSave) router.back();
-            }}
-            disabled={!canSave}
+            style={[styles.saveBtn, (!canSave || isAdding) && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={!canSave || isAdding}
           >
-            <Text style={styles.saveTxt}>Mentés + 24h visszaszámlálás</Text>
+            {isAdding
+              ? <ActivityIndicator color="white" />
+              : <Text style={styles.saveTxt}>Mentés + 24h visszaszámlálás</Text>
+            }
           </Pressable>
         </View>
       </SafeAreaView>
