@@ -15,7 +15,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { conversationId, message, type, context } = await req.json();
+    const { message, type, context } = await req.json();
 
     const anthropic = new Anthropic({
       apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
@@ -39,11 +39,17 @@ Segíts a felhasználónak pénzügyi kérdéseiben. Mindig magyarul válaszolj.
     const systemPrompt = systemPrompts[type] || systemPrompts.general;
 
     // SSE stream létrehozása
+    // If context was supplied (e.g. monthly expense summary), append it to the
+    // user message so Claude has the data without exposing it in the chat UI.
+    const userContent: string = context
+      ? `${message}\n\n--- Pénzügyi adatok ---\n${context}`
+      : message;
+
     const stream = anthropic.messages.stream({
-      model: type === 'spending_analysis' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: message }],
+      model:      type === 'spending_analysis' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001',
+      max_tokens: type === 'spending_analysis' ? 2048 : 1024,
+      system:     systemPrompt,
+      messages:   [{ role: 'user', content: userContent }],
     });
 
     const encoder = new TextEncoder();

@@ -6,8 +6,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useImpulseItems } from '@/hooks/useImpulse';
+import { useCategories } from '@/hooks/useCategories';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { ImpulseItem } from '@/types/database';
+import { useColors } from '@/lib/useColors';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ function useMinuteTicker() {
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ImpulseScreen() {
+  const colors = useColors();
   useMinuteTicker();
   const { hourlyWage } = useSettingsStore();
   const {
@@ -56,6 +59,10 @@ export default function ImpulseScreen() {
     isLoading, isRefetching, refetch,
     makeDecision, isDeciding,
   } = useImpulseItems();
+  const { categories } = useCategories();
+
+  // Build category lookup map
+  const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
 
   function confirmDecision(item: ImpulseItem, decision: 'purchased' | 'skipped') {
     const isPurchase = decision === 'purchased';
@@ -76,29 +83,29 @@ export default function ImpulseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Impulzus Check ⚡</Text>
-        <Text style={styles.subtitle}>Gondold meg kétszer mielőtt vásárolsz</Text>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.header, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Impulzus Check ⚡</Text>
+        <Text style={[styles.subtitle, { color: colors.textSub }]}>Gondold meg kétszer mielőtt vásárolsz</Text>
       </View>
 
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#4F46E5" size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#4F46E5" />
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
           }
         >
           {/* ── Megtakarítás kártya ── */}
-          <View style={styles.savedCard}>
+          <View style={[styles.savedCard, { backgroundColor: colors.card }]}>
             <Text style={styles.savedEmoji}>🎉</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.savedLabel}>EDDIG MEGSPÓROLTAD</Text>
+              <Text style={[styles.savedLabel, { color: colors.textSub }]}>EDDIG MEGSPÓROLTAD</Text>
               <Text style={styles.savedAmt}>
                 {savedAmount > 0
                   ? `+ ${savedAmount.toLocaleString('hu-HU')} Ft`
@@ -106,7 +113,7 @@ export default function ImpulseScreen() {
               </Text>
             </View>
             {history.filter(i => i.decision === 'skipped').length > 0 && (
-              <Text style={styles.savedCount}>
+              <Text style={[styles.savedCount, { color: colors.textSub }]}>
                 {history.filter(i => i.decision === 'skipped').length} visszautasított{'\n'}impulzusvásárlás
               </Text>
             )}
@@ -131,10 +138,10 @@ export default function ImpulseScreen() {
 
           {/* ── Üres állapot ── */}
           {pending.length === 0 && history.length === 0 && (
-            <View style={styles.emptyCard}>
+            <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
               <Text style={styles.emptyEmoji}>⚡</Text>
-              <Text style={styles.emptyTitle}>Nincs impulzus tétel</Text>
-              <Text style={styles.emptyText}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>Nincs impulzus tétel</Text>
+              <Text style={[styles.emptyText, { color: colors.textSub }]}>
                 Ha valami megtetszik, add hozzá! 24 óra után eldöntheted, hogy valóban szükséged van-e rá.
               </Text>
             </View>
@@ -145,6 +152,8 @@ export default function ImpulseScreen() {
             <ImpulseCard
               key={item.id}
               item={item}
+              cat={item.category_id ? catMap[item.category_id] : undefined}
+              onOpen={() => router.push({ pathname: '/(tabs)/impulse/new', params: { impulseId: item.id } } as any)}
               onSkip={() => confirmDecision(item, 'skipped')}
               onBuy={() => confirmDecision(item, 'purchased')}
               isDeciding={isDeciding}
@@ -154,13 +163,15 @@ export default function ImpulseScreen() {
           {/* ── Korábbi döntések ── */}
           {history.length > 0 && (
             <>
-              <Text style={styles.histLabel}>KORÁBBI DÖNTÉSEK</Text>
-              <View style={styles.card}>
+              <Text style={[styles.histLabel, { color: colors.textMuted }]}>KORÁBBI DÖNTÉSEK</Text>
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
                 {history.map((item, i) => (
                   <HistItem
                     key={item.id}
                     item={item}
+                    cat={item.category_id ? catMap[item.category_id] : undefined}
                     last={i === history.length - 1}
+                    onOpen={() => router.push({ pathname: '/(tabs)/impulse/new', params: { impulseId: item.id } } as any)}
                   />
                 ))}
               </View>
@@ -169,8 +180,8 @@ export default function ImpulseScreen() {
         </ScrollView>
       )}
 
-      <View style={styles.addBtnWrap}>
-        <Pressable style={styles.addBtn} onPress={() => router.push('/(tabs)/impulse/new' as any)}>
+      <View style={[styles.addBtnWrap, { backgroundColor: colors.bg }]}>
+        <Pressable style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => router.push('/(tabs)/impulse/new' as any)}>
           <Text style={styles.addBtnText}>+ Új impulzus tétel</Text>
         </Pressable>
       </View>
@@ -180,37 +191,42 @@ export default function ImpulseScreen() {
 
 // ─── ImpulseCard komponens ─────────────────────────────────────────────────────
 
+type CatInfo = { icon: string; color: string; name_hu: string | null } | undefined;
+
 function ImpulseCard({
-  item, onSkip, onBuy, isDeciding,
+  item, cat, onOpen, onSkip, onBuy, isDeciding,
 }: {
   item: ImpulseItem;
+  cat: CatInfo;
+  onOpen: () => void;
   onSkip: () => void;
   onBuy: () => void;
   isDeciding: boolean;
 }) {
+  const colors = useColors();
   const { text: timerText, expired } = getTimeLeft(item.notify_at);
 
   return (
-    <View style={styles.card}>
+    <Pressable style={[styles.card, { backgroundColor: colors.card }]} onPress={onOpen}>
       <View style={styles.itemTop}>
-        <View style={styles.itemEmoji}>
-          <Text style={{ fontSize: 22 }}>🛍️</Text>
+        <View style={[styles.itemEmoji, { backgroundColor: cat ? (cat.color + '22') : colors.borderLight }]}>
+          <Text style={{ fontSize: 22 }}>{cat ? cat.icon : '🛍️'}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.itemStore} numberOfLines={1}>
-            {item.store_name ?? 'Ismeretlen bolt'}
+          <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.itemCat, { color: colors.textSub }]} numberOfLines={1}>
+            {cat ? (cat.name_hu ?? 'Kategória') : 'Vásárlás'}
           </Text>
         </View>
-        <Text style={styles.itemPrice}>
+        <Text style={[styles.itemPrice, { color: colors.text }]}>
           {item.price.toLocaleString('hu-HU')} Ft
         </Text>
       </View>
 
       <View style={styles.itemBody}>
         {item.hours_to_earn != null && item.hours_to_earn > 0 && (
-          <View style={styles.workRow}>
-            <Text style={styles.workLbl}>⏱️ Ezért ennyit dolgozol</Text>
+          <View style={[styles.workRow, { backgroundColor: colors.inputBg }]}>
+            <Text style={[styles.workLbl, { color: colors.textSub }]}>⏱️ Ezért ennyit dolgozol</Text>
             <Text style={styles.workVal}>{workHoursLabel(item.hours_to_earn)}</Text>
           </View>
         )}
@@ -220,9 +236,9 @@ function ImpulseCard({
           <Text style={[styles.timerTxt, expired && styles.timerTxtWarn]}>{timerText}</Text>
         </View>
 
-        {item.reason ? (
-          <View style={styles.reasonRow}>
-            <Text style={styles.reasonTxt}>💭 {item.reason}</Text>
+        {item.store_name ? (
+          <View style={[styles.reasonRow, { backgroundColor: colors.pressedBg }]}>
+            <Text style={[styles.reasonTxt, { color: colors.textSub }]}>📝 {item.store_name}</Text>
           </View>
         ) : null}
 
@@ -243,33 +259,41 @@ function ImpulseCard({
           </Pressable>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 // ─── HistItem komponens ────────────────────────────────────────────────────────
 
-function HistItem({ item, last }: { item: ImpulseItem; last: boolean }) {
+function HistItem({ item, cat, last, onOpen }: { item: ImpulseItem; cat: CatInfo; last: boolean; onOpen: () => void }) {
+  const colors = useColors();
   const skipped = item.decision === 'skipped';
   const dateStr = item.decided_at
     ? new Date(item.decided_at).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
     : '';
 
   return (
-    <View style={[styles.histItem, !last && styles.histItemBorder]}>
-      <Text style={{ fontSize: 22 }}>🛍️</Text>
+    <Pressable style={[styles.histItem, !last && styles.histItemBorder, !last && { borderBottomColor: colors.borderLight }]} onPress={onOpen}>
+      <View style={[styles.histIcon, { backgroundColor: cat ? (cat.color + '22') : colors.borderLight }]}>
+        <Text style={{ fontSize: 18 }}>{cat ? cat.icon : '🛍️'}</Text>
+      </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.histName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.histPrice}>
+        <Text style={[styles.histName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+        {!!item.store_name && (
+          <Text style={[styles.histDesc, { color: colors.textSub }]} numberOfLines={1}>
+            {item.store_name}
+          </Text>
+        )}
+        <Text style={[styles.histPrice, { color: colors.textMuted }]}>
           {item.price.toLocaleString('hu-HU')} Ft{dateStr ? ` · ${dateStr}` : ''}
         </Text>
       </View>
       <View style={[styles.badge, skipped ? styles.badgeGreen : styles.badgeRed]}>
-        <Text style={[styles.badgeTxt, { color: skipped ? '#065F46' : '#991B1B' }]}>
+        <Text style={[styles.badgeTxt, { color: skipped ? colors.badgeGreenTx : colors.badgeRedTx }]}>
           {skipped ? '✓ Megspóroltam' : '💳 Megvettem'}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -301,9 +325,9 @@ const styles = StyleSheet.create({
 
   card:       { backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
   itemTop:    { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
-  itemEmoji:  { width: 46, height: 46, backgroundColor: '#F3F4F6', borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  itemEmoji:  { width: 46, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   itemName:   { fontSize: 15, fontWeight: '700', color: '#111827' },
-  itemStore:  { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  itemCat:    { fontSize: 12, color: '#6B7280', marginTop: 2 },
   itemPrice:  { fontSize: 16, fontWeight: '500', color: '#111827', fontVariant: ['tabular-nums'] },
   itemBody:   { padding: 14, paddingTop: 0, gap: 8 },
 
@@ -328,7 +352,9 @@ const styles = StyleSheet.create({
   histLabel:      { fontSize: 11, fontWeight: '700', color: '#9CA3AF', letterSpacing: 0.7 },
   histItem:       { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
   histItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  histIcon:       { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   histName:       { fontSize: 13, fontWeight: '600', color: '#6B7280' },
+  histDesc:       { fontSize: 12, color: '#6B7280', marginTop: 1 },
   histPrice:      { fontSize: 12, color: '#9CA3AF', marginTop: 1 },
   badge:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeGreen:     { backgroundColor: '#D1FAE5' },

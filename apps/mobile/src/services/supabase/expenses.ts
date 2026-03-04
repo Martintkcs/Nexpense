@@ -24,7 +24,6 @@ export async function fetchMonthlyExpenses(
   month: number,
 ): Promise<Expense[]> {
   const from = `${year}-${String(month).padStart(2, '0')}-01`;
-  // Use getDate() — avoids UTC conversion shifting the day in UTC+ timezones
   const lastDay = new Date(year, month, 0).getDate();
   const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
@@ -39,6 +38,27 @@ export async function fetchMonthlyExpenses(
 
   if (error) throw error;
   return data ?? [];
+}
+
+/** Minden idők bevétel/kiadás összesítője az egyenleg számításhoz */
+export async function fetchAllTimeBalance(
+  userId: string,
+): Promise<{ income: number; expense: number }> {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('amount, type')
+    .eq('user_id', userId)
+    .eq('is_deleted', false);
+
+  if (error) throw error;
+
+  let income = 0;
+  let expense = 0;
+  for (const row of data ?? []) {
+    if (row.type === 'income') income += row.amount;
+    else expense += row.amount;
+  }
+  return { income, expense };
 }
 
 export async function createExpense(expense: NewExpense): Promise<Expense> {

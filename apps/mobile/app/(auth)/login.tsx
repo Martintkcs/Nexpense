@@ -3,8 +3,10 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { supabase } from '@/services/supabase/client';
+import { useColors } from '@/lib/useColors';
 
 export default function LoginScreen() {
+  const colors = useColors();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,13 +36,13 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.title}>Bejelentkezés</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Bejelentkezés</Text>
         <View style={styles.form}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="Email cím"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -48,9 +50,9 @@ export default function LoginScreen() {
             autoCorrect={false}
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="Jelszó"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -60,7 +62,7 @@ export default function LoginScreen() {
           </Pressable>
         </View>
         <Pressable onPress={() => router.back()}>
-          <Text style={styles.link}>← Vissza</Text>
+          <Text style={[styles.link, { color: colors.primary }]}>← Vissza</Text>
         </Pressable>
       </SafeAreaView>
     </KeyboardAvoidingView>

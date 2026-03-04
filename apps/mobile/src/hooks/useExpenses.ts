@@ -2,10 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchExpenses,
   fetchMonthlyExpenses,
+  fetchAllTimeBalance,
   createExpense,
+  updateExpense as updateExpenseService,
   softDeleteExpense,
 } from '@/services/supabase/expenses';
 import { useAuth } from '@/providers/AuthProvider';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { Database } from '@/types/database';
 
 type NewExpense = Database['public']['Tables']['expenses']['Insert'];
@@ -18,7 +21,7 @@ export function useExpenses() {
     queryKey: ['expenses', user?.id],
     queryFn: () => fetchExpenses(user!.id),
     enabled: !!user,
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 2,
   });
 
   const addMutation = useMutation({
@@ -26,12 +29,22 @@ export function useExpenses() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly'] });
+      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<NewExpense> }) =>
+      updateExpenseService(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly'] });
+      queryClient.invalidateQueries({ queryKey: ['balance'] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => softDeleteExpense(id),
-    // Optimistic update: remove the item immediately from the cache
     onMutate: async (id: string) => {
       await queryClient.cancelQueries({ queryKey: ['expenses', user?.id] });
       const previous = queryClient.getQueryData<NewExpense[]>(['expenses', user?.id]);
@@ -41,7 +54,6 @@ export function useExpenses() {
       return { previous };
     },
     onError: (_err, _id, context) => {
-      // Roll back if the server call fails
       if (context?.previous) {
         queryClient.setQueryData(['expenses', user?.id], context.previous);
       }
@@ -49,6 +61,7 @@ export function useExpenses() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly'] });
+      queryClient.invalidateQueries({ queryKey: ['balance'] });
     },
   });
 
@@ -60,6 +73,8 @@ export function useExpenses() {
     refetch: query.refetch,
     addExpense: addMutation.mutateAsync,
     isAdding: addMutation.isPending,
+    updateExpense: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
     deleteExpense: deleteMutation.mutateAsync,
   };
 }
@@ -73,4 +88,28 @@ export function useMonthlyExpenses(year: number, month: number) {
     enabled: !!user,
     staleTime: 1000 * 60 * 5,
   });
+}
+
+/** Valós idejű egyenleg = kezdő egyenleg + összes bevétel − összes kiadás */
+export function useBalance() {
+  const { user } = useAuth();
+  const { startingBalance } = useSettingsStore();
+
+  const query = useQuery({
+    queryKey: ['balance', user?.id],
+    queryFn: () => fetchAllTimeBalance(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const { income = 0, expense = 0 } = query.data ?? {};
+  const balance = startingBalance + income - expense;
+
+  return {
+    balance,
+    totalIncome: income,
+    totalExpense: expense,
+    isLoading: query.isLoading,
+    refetch: query.refetch,
+  };
 }

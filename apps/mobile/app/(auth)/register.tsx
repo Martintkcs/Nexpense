@@ -3,8 +3,10 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { supabase } from '@/services/supabase/client';
+import { useColors } from '@/lib/useColors';
 
 export default function RegisterScreen() {
+  const colors = useColors();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,21 +78,21 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.title}>Fiók létrehozása</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Fiók létrehozása</Text>
         <View style={styles.form}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="Teljes neved"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="Email cím"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -98,9 +100,9 @@ export default function RegisterScreen() {
             autoCorrect={false}
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
             placeholder="Jelszó (min. 8 karakter)"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -110,7 +112,7 @@ export default function RegisterScreen() {
           </Pressable>
         </View>
         <Pressable onPress={() => router.push('/(auth)/login')}>
-          <Text style={styles.link}>Már van fiókom → Bejelentkezés</Text>
+          <Text style={[styles.link, { color: colors.primary }]}>Már van fiókom → Bejelentkezés</Text>
         </Pressable>
       </SafeAreaView>
     </KeyboardAvoidingView>

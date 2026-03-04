@@ -1,19 +1,19 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchCategories } from '@/services/supabase/categories';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchCategories, createCategory, updateCategory, deleteCategory as deleteCategoryService } from '@/services/supabase/categories';
 import { useAuth } from '@/providers/AuthProvider';
 import { SYSTEM_CATEGORIES } from '@/lib/constants';
 
 export function useCategories() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['categories', user?.id],
     queryFn: () => fetchCategories(user?.id),
     enabled: !!user,
-    staleTime: 1000 * 60 * 30, // 30 min – categories change rarely
+    staleTime: 1000 * 60 * 30,
   });
 
-  // Fall back to local constants while loading (for instant UI)
   const fallbackCategories = SYSTEM_CATEGORIES.map((c, i) => ({
     id: c.id,
     user_id: null,
@@ -27,12 +27,34 @@ export function useCategories() {
     created_at: new Date().toISOString(),
   }));
 
-  // Ha a DB üres tömböt ad vissza (seed nem futott), akkor is a fallback-et használjuk
   const categories = query.data?.length ? query.data : fallbackCategories;
+
+  const addMutation = useMutation({
+    mutationFn: (params: { name: string; nameHu: string; icon: string; color: string }) =>
+      createCategory({ userId: user!.id, ...params }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...params }: { id: string; name?: string; nameHu?: string; icon?: string; color?: string }) =>
+      updateCategory(id, params),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteCategoryService(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
 
   return {
     categories,
     isLoading: query.isLoading,
     error: query.error,
+    addCategory: addMutation.mutateAsync,
+    isAdding: addMutation.isPending,
+    updateCategory: updateMutation.mutateAsync,
+    isUpdating: updateMutation.isPending,
+    deleteCategory: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
   };
 }

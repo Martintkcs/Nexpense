@@ -1,21 +1,35 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/providers/AuthProvider';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 export default function WelcomeScreen() {
+  const { user } = useAuth();
+  const onboardingCompleted = useSettingsStore((state) => state.onboardingCompleted);
+
+  function handlePrimaryAction() {
+    if (user && !onboardingCompleted) {
+      router.push('/(auth)/onboarding/1');
+      return;
+    }
+
+    router.push('/(auth)/register');
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.hero}>
         <Text style={styles.logo}>💸</Text>
         <Text style={styles.title}>Nexpense</Text>
-        <Text style={styles.subtitle}>Tudatos pénzköltés, AI segítséggel</Text>
+        <Text style={styles.subtitle}>Tudatos penzkoltes, AI segitseggel</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable style={styles.btnPrimary} onPress={() => router.push('/(auth)/register')}>
-          <Text style={styles.btnPrimaryText}>Kezdés</Text>
+        <Pressable style={styles.btnPrimary} onPress={handlePrimaryAction}>
+          <Text style={styles.btnPrimaryText}>Kezdes</Text>
         </Pressable>
         <Pressable style={styles.btnSecondary} onPress={() => router.push('/(auth)/login')}>
-          <Text style={styles.btnSecondaryText}>Már van fiókom</Text>
+          <Text style={styles.btnSecondaryText}>Mar van fiokom</Text>
         </Pressable>
       </View>
     </SafeAreaView>

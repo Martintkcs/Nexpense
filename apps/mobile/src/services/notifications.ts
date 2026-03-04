@@ -10,6 +10,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
+const IMPULSE_NOTIFICATION_DELAY_SECONDS = 24 * 60 * 60;
+
 // ─── Foreground notification handler ─────────────────────────────────────────
 // Ezt egyszer kell meghívni (root _layout.tsx-ben), hogy foreground-ban
 // is megjelenjenek az értesítések.
@@ -18,6 +20,8 @@ export function setupNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     }),
@@ -63,7 +67,7 @@ export async function getNotificationPermissionStatus(): Promise<'granted' | 'de
 export async function scheduleImpulseNotification(
   itemId: string,
   itemName: string,
-  delaySeconds = 10,
+  delaySeconds = IMPULSE_NOTIFICATION_DELAY_SECONDS,
 ): Promise<string> {
   await ensureAndroidChannel();
 
@@ -107,14 +111,22 @@ export async function cancelAllScheduledNotifications() {
  */
 export async function getExpoPushToken(): Promise<string | null> {
   try {
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!projectId || projectId === 'REPLACE_WITH_YOUR_EAS_PROJECT_ID') {
-      // Expo Go fejlesztési módban nincs EAS token – nem hiba, csak nem elérhető
+    // SDK 54: projectId olvasása app.config.ts extra.eas.projectId-ből
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+
+    if (!projectId) {
+      console.warn('[PushToken] projectId hiányzik a Constants.expoConfig.extra.eas-ból');
       return null;
     }
+
+    console.log('[PushToken] projectId:', projectId);
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log('[PushToken] token:', tokenData.data);
     return tokenData.data;
-  } catch {
+  } catch (err) {
+    // Tipikus okok: szimulátor, nincs hálózat, Expo Go + nincs bejelentkezve
+    console.warn('[PushToken] getExpoPushTokenAsync hiba:', err);
     return null;
   }
 }

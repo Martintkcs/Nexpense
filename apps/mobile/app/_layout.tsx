@@ -11,6 +11,7 @@ import { setupNotificationHandler, getExpoPushToken } from '@/services/notificat
 import { savePushToken } from '@/services/supabase/pushTokens';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useAuth } from '@/providers/AuthProvider';
+import { useColors } from '@/lib/useColors';
 
 /** Bejelentkezés után szinkronizálja a push tokent ha értesítések be vannak kapcsolva */
 function NotificationAutoRegister() {
@@ -35,8 +36,9 @@ function NotificationAutoRegister() {
 setupNotificationHandler();
 
 export default function RootLayout() {
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const colors = useColors();
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
     // Felhasználó rányomott egy értesítésre → navigáció
@@ -61,14 +63,14 @@ export default function RootLayout() {
       <QueryProvider>
         <AuthProvider>
           <NotificationAutoRegister />
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modals/quick-add" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/apple-pay-detected" options={{ presentation: 'modal' }} />
             <Stack.Screen name="modals/ai-chat" options={{ presentation: 'fullScreenModal' }} />
           </Stack>
-          <StatusBar style="auto" />
+          <StatusBar style={colors.statusBar} />
         </AuthProvider>
       </QueryProvider>
     </GestureHandlerRootView>

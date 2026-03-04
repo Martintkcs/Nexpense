@@ -17,6 +17,7 @@ export type Database = {
           wage_currency: string | null;
           spending_profile: Json | null;
           onboarding_completed_at: string | null;
+          starting_balance: number;
           created_at: string;
           updated_at: string;
         };
@@ -30,6 +31,7 @@ export type Database = {
           wage_currency?: string | null;
           spending_profile?: Json | null;
           onboarding_completed_at?: string | null;
+          starting_balance?: number;
         };
         Update: {
           display_name?: string | null;
@@ -40,6 +42,7 @@ export type Database = {
           wage_currency?: string | null;
           spending_profile?: Json | null;
           onboarding_completed_at?: string | null;
+          starting_balance?: number;
         };
         Relationships: [];
       };
@@ -50,6 +53,7 @@ export type Database = {
           category_id: string | null;
           amount: number;
           currency: string;
+          type: 'expense' | 'income';
           description: string | null;
           note: string | null;
           expense_date: string;
@@ -70,6 +74,7 @@ export type Database = {
           category_id?: string | null;
           amount: number;
           currency?: string;
+          type?: 'expense' | 'income';
           description?: string | null;
           note?: string | null;
           expense_date: string;
@@ -86,6 +91,7 @@ export type Database = {
           category_id?: string | null;
           amount?: number;
           currency?: string;
+          type?: 'expense' | 'income';
           description?: string | null;
           note?: string | null;
           expense_date?: string;
@@ -154,6 +160,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      expense_templates: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          description: string | null;
+          category_id: string | null;
+          label_ids: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          description?: string | null;
+          category_id?: string | null;
+          label_ids?: string[];
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          category_id?: string | null;
+          label_ids?: string[];
+        };
+        Relationships: [];
+      };
       push_tokens: {
         Row: {
           id: string;
@@ -219,9 +252,11 @@ export type Database = {
         Update: {
           name?: string;
           price?: number;
+          category_id?: string | null;
           url?: string | null;
           store_name?: string | null;
           reason?: string | null;
+          hours_to_earn?: number | null;
           decision?: 'purchased' | 'skipped' | 'pending';
           decided_at?: string | null;
           notification_sent?: boolean;
@@ -255,3 +290,4 @@ export type Category = Tables<'categories'>;
 export type Profile = Tables<'profiles'>;
 export type ImpulseItem = Tables<'impulse_items'>;
 export type PushToken = Tables<'push_tokens'>;
+export type ExpenseTemplate = Tables<'expense_templates'>;

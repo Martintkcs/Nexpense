@@ -1,7 +1,8 @@
 import { supabase } from './client';
-import { InsertDto } from '@/types/database';
+import { InsertDto, UpdateDto } from '@/types/database';
 
 type ImpulseInsert = InsertDto<'impulse_items'>;
+type ImpulseUpdate = UpdateDto<'impulse_items'>;
 
 export async function fetchImpulseItems(userId: string) {
   const { data, error } = await supabase
@@ -32,6 +33,18 @@ export async function updateImpulseDecision(
   const { data, error } = await supabase
     .from('impulse_items')
     .update({ decision, decided_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateImpulseItem(id: string, updates: ImpulseUpdate) {
+  const { data, error } = await supabase
+    .from('impulse_items')
+    .update(updates)
     .eq('id', id)
     .select()
     .single();

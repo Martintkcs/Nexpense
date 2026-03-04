@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, TextInput, Pressable,
   StyleSheet, RefreshControl, ActivityIndicator, Animated,
@@ -9,8 +9,7 @@ import { router } from 'expo-router';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useCategories } from '@/hooks/useCategories';
 import type { Expense, Category } from '@/types/database';
-
-// ─── Date helpers ──────────────────────────────────────────────────────────────
+import { useColors } from '@/lib/useColors';
 
 function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
@@ -36,6 +35,7 @@ function groupByDate(expenses: Expense[]) {
     if (!map.has(e.expense_date)) map.set(e.expense_date, []);
     map.get(e.expense_date)!.push(e);
   }
+
   return Array.from(map.entries()).map(([dateKey, items]) => ({
     label: getDayLabel(dateKey),
     dateKey,
@@ -43,50 +43,55 @@ function groupByDate(expenses: Expense[]) {
   }));
 }
 
-// ─── Main screen ───────────────────────────────────────────────────────────────
-
 export default function ExpensesScreen() {
+  const colors = useColors();
   const { expenses, isLoading, isRefetching, refetch, deleteExpense } = useExpenses();
   const { categories } = useCategories();
 
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-
-  // Close any open swipeable when another one opens
   const openSwipeableRef = useRef<Swipeable | null>(null);
 
-  const catMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
-  // Category chips — only show categories that appear in actual expenses
   const usedCatIds = useMemo(
-    () => new Set(expenses.map(e => e.category_id).filter(Boolean)),
+    () => new Set(expenses.map((e) => e.category_id).filter(Boolean)),
     [expenses],
   );
+
   const filterCats = useMemo(
-    () => categories.filter(c => usedCatIds.has(c.id)),
+    () => categories.filter((c) => usedCatIds.has(c.id)),
     [categories, usedCatIds],
   );
 
-  // Filter + search (client-side, instant)
   const filtered = useMemo(() => {
     let list = expenses;
-    if (activeFilter) list = list.filter(e => e.category_id === activeFilter);
+
+    if (activeFilter) list = list.filter((e) => e.category_id === activeFilter);
+
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(e => {
+      list = list.filter((e) => {
         const desc = (e.description ?? '').toLowerCase();
+        const note = (e.note ?? '').toLowerCase();
         const cat = catMap.get(e.category_id ?? '');
         const catName = (cat?.name_hu ?? '').toLowerCase();
-        return desc.includes(q) || catName.includes(q);
+        return desc.includes(q) || note.includes(q) || catName.includes(q);
       });
     }
+
     return list;
   }, [expenses, activeFilter, search, catMap]);
 
   const groups = useMemo(() => groupByDate(filtered), [filtered]);
 
-  const monthlyTotal = useMemo(
-    () => expenses.reduce((sum, e) => sum + e.amount, 0),
+  const monthlyExpenseTotal = useMemo(
+    () => expenses.filter((e) => e.type !== 'income').reduce((sum, e) => sum + e.amount, 0),
+    [expenses],
+  );
+
+  const monthlyIncomeTotal = useMemo(
+    () => expenses.filter((e) => e.type === 'income').reduce((sum, e) => sum + e.amount, 0),
     [expenses],
   );
 
@@ -98,55 +103,57 @@ export default function ExpensesScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-
-      {/* ── Search ── */}
-      <View style={styles.searchWrap}>
-        <View style={styles.searchBox}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top']}>
+      <View style={[styles.searchWrap, { backgroundColor: colors.header, borderBottomColor: colors.border }]}>
+        <View style={[styles.searchBox, { backgroundColor: colors.inputBg }]}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
-            style={styles.searchInput}
-            placeholder="Keresés..."
-            placeholderTextColor="#9CA3AF"
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Kereses..."
+            placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <Text style={styles.clearBtn}>✕</Text>
+              <Text style={[styles.clearBtn, { color: colors.textMuted }]}>✕</Text>
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* ── Category filter chips ── */}
       {filterCats.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.chips}
+          style={[styles.chips, { backgroundColor: colors.header, borderBottomColor: colors.border }]}
           contentContainerStyle={styles.chipsContent}
         >
           <Pressable
-            style={[styles.chip, !activeFilter && styles.chipActive]}
+            style={[
+              styles.chip,
+              { borderColor: colors.border, backgroundColor: colors.card },
+              !activeFilter && [styles.chipActive, { backgroundColor: colors.primary, borderColor: colors.primary }],
+            ]}
             onPress={() => setActiveFilter(null)}
           >
-            <Text style={[styles.chipText, !activeFilter && styles.chipTextActive]}>Mind</Text>
+            <Text style={[styles.chipText, { color: colors.textSub }, !activeFilter && styles.chipTextActive]}>Mind</Text>
           </Pressable>
-          {filterCats.map(cat => {
+          {filterCats.map((cat) => {
             const active = activeFilter === cat.id;
             return (
               <Pressable
                 key={cat.id}
                 style={[
                   styles.chip,
+                  { borderColor: colors.border, backgroundColor: colors.card },
                   active && { backgroundColor: cat.color, borderColor: cat.color },
                 ]}
                 onPress={() => setActiveFilter(active ? null : cat.id)}
               >
                 <Text style={{ fontSize: 12, marginRight: 4 }}>{cat.icon}</Text>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                <Text style={[styles.chipText, { color: colors.textSub }, active && styles.chipTextActive]}>
                   {cat.name_hu}
                 </Text>
               </Pressable>
@@ -155,43 +162,48 @@ export default function ExpensesScreen() {
         </ScrollView>
       )}
 
-      {/* ── Summary strip ── */}
       <View style={styles.summaryStrip}>
-        <Text style={styles.summaryLabel}>{expenses.length} tétel ebben a hónapban</Text>
-        <Text style={styles.summaryTotal}>
-          {isLoading ? '...' : `${monthlyTotal.toLocaleString('hu-HU')} Ft`}
-        </Text>
+        <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>{expenses.length} tetel</Text>
+        <View style={styles.summaryTotals}>
+          {monthlyIncomeTotal > 0 && (
+            <Text style={[styles.summaryTotal, styles.summaryIncome]}>
+              +{monthlyIncomeTotal.toLocaleString('hu-HU')} Ft
+            </Text>
+          )}
+          <Text style={[styles.summaryTotal, styles.summaryExpense]}>
+            -{monthlyExpenseTotal.toLocaleString('hu-HU')} Ft
+          </Text>
+        </View>
       </View>
 
-      {/* ── List ── */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#4F46E5" />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
         }
       >
         {isLoading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#4F46E5" size="large" />
+            <ActivityIndicator color={colors.primary} size="large" />
           </View>
         ) : groups.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyEmoji}>💸</Text>
-            <Text style={styles.emptyTitle}>
-              {search || activeFilter ? 'Nincs találat' : 'Még nincs kiadás'}
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {search || activeFilter ? 'Nincs talalat' : 'Meg nincs tranzakcio'}
             </Text>
-            <Text style={styles.emptyHint}>
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
               {search || activeFilter
-                ? 'Próbálj más keresési feltételt'
-                : 'Nyomj a + gombra az első rögzítéséhez!'}
+                ? 'Probald mas keresesi feltetellel'
+                : 'Nyomj a + gombra az elso rogziteshez!'}
             </Text>
           </View>
         ) : (
-          groups.map(group => (
+          groups.map((group) => (
             <View key={group.dateKey}>
-              <Text style={styles.dayLabel}>{group.label}</Text>
-              <View style={styles.card}>
+              <Text style={[styles.dayLabel, { color: colors.textMuted }]}>{group.label}</Text>
+              <View style={[styles.card, { backgroundColor: colors.card }]}>
                 {group.items.map((expense, idx) => (
                   <ExpenseRow
                     key={expense.id}
@@ -199,6 +211,20 @@ export default function ExpensesScreen() {
                     cat={catMap.get(expense.category_id ?? '')}
                     isLast={idx === group.items.length - 1}
                     onDelete={() => deleteExpense(expense.id)}
+                    onEdit={() => router.push({
+                      pathname: '/modals/quick-add',
+                      params: {
+                        expenseId: expense.id,
+                        expenseAmount: String(expense.amount),
+                        expenseCategoryId: expense.category_id ?? '',
+                        expenseType: expense.type ?? 'expense',
+                        expenseDescription: expense.description ?? '',
+                        expenseNote: expense.note ?? '',
+                        expenseLabelIds: JSON.stringify(
+                          (expense.metadata as Record<string, unknown> | null)?.label_ids ?? [],
+                        ),
+                      },
+                    })}
                     onSwipeOpen={handleSwipeOpen}
                   />
                 ))}
@@ -206,39 +232,38 @@ export default function ExpensesScreen() {
             </View>
           ))
         )}
-        {/* Bottom padding so last item isn't hidden behind the add button */}
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ── Add button ── */}
-      <View style={styles.addBtnWrap}>
-        <Pressable style={styles.addBtn} onPress={() => router.push('/modals/quick-add')}>
-          <Text style={styles.addBtnText}>+ Kiadás hozzáadása</Text>
+      <View style={[styles.addBtnWrap, { backgroundColor: `${colors.bg}F2`, borderTopColor: colors.border }]}>
+        <Pressable style={[styles.addBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]} onPress={() => router.push('/modals/quick-add')}>
+          <Text style={styles.addBtnText}>+ Tranzakcio hozzaadasa</Text>
         </Pressable>
       </View>
     </SafeAreaView>
   );
 }
 
-// ─── Swipeable row ─────────────────────────────────────────────────────────────
-
 function ExpenseRow({
   expense,
   cat,
   isLast,
   onDelete,
+  onEdit,
   onSwipeOpen,
 }: {
   expense: Expense;
   cat: Category | undefined;
   isLast: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onSwipeOpen: (ref: Swipeable) => void;
 }) {
+  const colors = useColors();
   const swipeableRef = useRef<Swipeable>(null);
-  const iconBg = (cat?.color ?? '#9CA3AF') + '22'; // 13 % opacity tint
+  const isIncome = expense.type === 'income';
+  const iconBg = isIncome && !cat ? '#10B98122' : (cat?.color ?? colors.textMuted) + '22';
 
-  // The red action panel revealed on swipe-left
   function renderRightActions(
     _progress: Animated.AnimatedInterpolation<number>,
     dragX: Animated.AnimatedInterpolation<number>,
@@ -251,15 +276,14 @@ function ExpenseRow({
 
     return (
       <Pressable
-        style={styles.deleteAction}
+        style={[styles.deleteAction, { backgroundColor: colors.deleteBg }]}
         onPress={() => {
           swipeableRef.current?.close();
           onDelete();
         }}
       >
-        <Animated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
-          <Text style={styles.deleteActionIcon}>🗑️</Text>
-          <Text style={styles.deleteActionText}>Törlés</Text>
+        <Animated.View style={{ transform: [{ scale }] }}>
+          <Text style={styles.deleteActionText}>Torles</Text>
         </Animated.View>
       </Pressable>
     );
@@ -274,42 +298,51 @@ function ExpenseRow({
       renderRightActions={renderRightActions}
       onSwipeableOpen={() => onSwipeOpen(swipeableRef.current!)}
     >
-      <View style={[styles.item, !isLast && styles.itemBorder]}>
-        {/* Category icon */}
+      <Pressable
+        style={[
+          styles.item,
+          { backgroundColor: colors.card },
+          !isLast && styles.itemBorder,
+          !isLast && { borderBottomColor: colors.borderLight },
+        ]}
+        onPress={onEdit}
+      >
         <View style={[styles.itemIco, { backgroundColor: iconBg }]}>
-          <Text style={{ fontSize: 18 }}>{cat?.icon ?? '📦'}</Text>
+          <Text style={{ fontSize: 18 }}>{cat?.icon ?? (isIncome ? '💰' : '📦')}</Text>
         </View>
 
-        {/* Name + category */}
         <View style={styles.itemInfo}>
-          <Text style={styles.itemName} numberOfLines={1}>
-            {expense.description ?? cat?.name_hu ?? 'Kiadás'}
+          <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>
+            {cat?.name_hu ?? (isIncome ? 'Bevetel' : 'Kategoria nelkul')}
           </Text>
-          <Text style={styles.itemCat} numberOfLines={1}>
-            {cat?.name_hu ?? 'Kategória nélkül'}
-            {expense.location_name ? `  ·  📍 ${expense.location_name}` : ''}
+          {!!expense.note && (
+            <Text style={[styles.itemNote, { color: colors.textSub }]} numberOfLines={1}>
+              {expense.note}
+            </Text>
+          )}
+          <Text style={[styles.itemMeta, { color: colors.textMuted }]} numberOfLines={1}>
+            {new Date(expense.expense_date).toLocaleDateString('hu-HU', {
+              month: 'short',
+              day: 'numeric',
+            })}
+            {expense.location_name ? ` · 📍 ${expense.location_name}` : ''}
           </Text>
         </View>
 
-        {/* Amount */}
         <View style={styles.itemRight}>
-          <Text style={styles.itemAmt}>
-            -{expense.amount.toLocaleString('hu-HU')} Ft
+          <Text style={[styles.itemAmt, isIncome && styles.itemAmtIncome]}>
+            {isIncome ? '+' : '-'}{expense.amount.toLocaleString('hu-HU')} Ft
           </Text>
-          {/* Subtle swipe hint arrow */}
-          <Text style={styles.swipeHint}>‹</Text>
+          <Text style={[styles.swipeHint, { color: colors.textMuted }]}>‹</Text>
         </View>
-      </View>
+      </Pressable>
     </Swipeable>
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F2F2F7' },
 
-  // Search
   searchWrap: {
     backgroundColor: 'white',
     padding: 12,
@@ -328,7 +361,6 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 9, fontSize: 14, color: '#111827' },
   clearBtn: { fontSize: 14, color: '#9CA3AF', paddingHorizontal: 2 },
 
-  // Chips
   chips: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
@@ -355,7 +387,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '500', color: '#6B7280' },
   chipTextActive: { color: 'white' },
 
-  // Summary
   summaryStrip: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -364,14 +395,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   summaryLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
-  summaryTotal: {
-    fontSize: 13,
-    color: '#4F46E5',
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
+  summaryTotals: { flexDirection: 'row', gap: 10 },
+  summaryTotal: { fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  summaryIncome: { color: '#10B981' },
+  summaryExpense: { color: '#EF4444' },
 
-  // List
   list: { paddingHorizontal: 16, paddingTop: 4, gap: 4 },
   center: { paddingTop: 60, alignItems: 'center' },
   emptyBox: { marginTop: 60, alignItems: 'center', gap: 8 },
@@ -399,7 +427,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Row
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -418,7 +445,8 @@ const styles = StyleSheet.create({
   },
   itemInfo: { flex: 1 },
   itemName: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  itemCat: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  itemNote: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  itemMeta: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
   itemRight: { alignItems: 'flex-end' },
   itemAmt: {
     fontSize: 14,
@@ -426,24 +454,21 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontVariant: ['tabular-nums'],
   },
+  itemAmtIncome: { color: '#10B981' },
   swipeHint: { fontSize: 12, color: '#D1D5DB', marginTop: 2 },
 
-  // Swipe delete action
   deleteAction: {
     backgroundColor: '#EF4444',
     width: 80,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteActionIcon: { fontSize: 20 },
   deleteActionText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
     color: 'white',
-    marginTop: 2,
   },
 
-  // Add button
   addBtnWrap: {
     position: 'absolute',
     bottom: 0,
